@@ -1,8 +1,25 @@
-# Monthly cost estimate
+# Cost, security and governance
+
+This document is the single control point for monthly cost, operating boundaries, access control and governance. Estimates model the current code in `us-east-1` for a 30-day month, before tax and without relying on promotional credits or shared free-tier allowances.
+
+## Operating states and implemented controls
+
+| State | What remains | Cost interpretation |
+|---|---|---|
+| Local | Files, tests and generated fixtures | No AWS charge from these operations |
+| Parked | Core metadata/functions plus bounded S3, DynamoDB and log data | Approximately $0.03/month under the documented envelope |
+| Demo | Parked core plus temporary Kinesis and active processing | Usage billed; destroy realtime immediately afterward |
+| Reset | Both project stacks removed | Bootstrap storage, service-created logs and unrelated account services can remain |
+
+Implemented controls: one provisioned shard only during demos; 24-hour stream retention; no enhanced fan-out; Glue two G.1X workers, ten-minute timeout, zero retry and one concurrent run; disabled daily schedule; Athena 10 MiB query cutoff; raw realtime seven-day expiry; failure payload 14-day expiry; query result one-day expiry; Lambda logs retained seven days; and a project-tag-filtered USD 5 monthly budget when the cost allocation tag is activated.
+
+A budget reports spend and is not a hard cap. The local `finally` cleanup cannot survive every laptop, credential or process failure; cloud-owned expiry remains M4 work.
+
+## Monthly cost estimate
 
 Reviewed 2026-09-06. This estimate models the code currently in this repository in `us-east-1` for a 30-day month. Values are USD before tax and deliberately exclude promotional credits and account-wide free-tier allowances. They are planning figures, not an AWS quote; replace modeled Lambda duration, log volume and short-lived stream time with measured billing after a rehearsal.
 
-## Decision table
+### Decision table
 
 | Operating pattern | What runs | Estimated month | Control allowance |
 |---|---|---:|---:|
@@ -14,11 +31,11 @@ Reviewed 2026-09-06. This estimate models the code currently in this repository 
 | Streaming 24x7 after batching S3 writes | Same load; approximately six events per S3 object | **$35.50** | **$42** |
 | 24x7 worst alert storm | Every event publishes to one confirmed email subscriber | **$227.31** | Do not operate |
 
-The recommended portfolio operating model is **two or three controlled demos, then frozen**. Expect about **$0.66–$0.97/month** for the project itself and use **$1.50** as the working ceiling. Keep the existing account-wide $5 budget because AWS Budgets reports after usage and is not a hard stop.
+The recommended portfolio operating model is **two or three controlled demos, then frozen**. Expect about **$0.66–$0.97/month** for the project itself and use **$1.50** as the working ceiling. Keep the project-tag-filtered $5 budget after activating and verifying the `Project` cost-allocation tag. AWS Budgets reports after usage and is not a hard stop.
 
 “Full every day” can mean two different things. Running the complete demonstration once each day is about **$9.46/month**. Leaving the stream and simulator active continuously while also running batch daily is about **$67.90/month** with the current handler.
 
-## Current implementation assumptions
+### Current implementation assumptions
 
 - Three ESP IDs emit one event each per second: 3 events/second.
 - A generated normal event averages 389 bytes in the current simulator and consumes one Kinesis 25 KB PUT payload unit, one S3 PUT and one DynamoDB WRU.
@@ -31,7 +48,7 @@ The recommended portfolio operating model is **two or three controlled demos, th
 - A short demo reserves one Kinesis shard-hour for create, warm-up, run and destroy. Actual billing duration must be read from Cost and Usage data.
 - The local dashboard uses the existing DynamoDB table and S3 KPI object. Its cached 10–15 second polling adds less than $0.001 per short demo at this scale and creates no fixed AWS resource.
 
-## Unit prices used
+### Unit prices used
 
 | Service | us-east-1 planning rate |
 |---|---:|
@@ -50,7 +67,7 @@ Official references: [Kinesis](https://aws.amazon.com/kinesis/data-streams/prici
 
 The following deployed definitions have no project charge while unused: CloudFormation stacks, IAM roles/policies, Lambda function definitions without invocations, an idle SNS topic, Glue job/crawler definitions, an idle Step Functions state machine, an Athena workgroup, and the disabled EventBridge schedule. Glue Data Catalog remains free while this project stays within the first one million stored objects and one million monthly requests. The budget in this stack only monitors and notifies, so it is free under AWS Budgets pricing. The required dashboard runs locally and adds no hosted service. Same-region service transfers are assumed; unusual internet or cross-region transfer is outside the model and must be measured if introduced.
 
-## Continuous-month breakdown
+### Continuous-month breakdown
 
 | Component | Calculation | Cost |
 |---|---|---:|
@@ -70,13 +87,13 @@ The following deployed definitions have no project charge while unused: CloudFor
 
 Free tiers can reduce Lambda, CloudWatch, DynamoDB, Step Functions or other lines when still available to the account. They are shared with unrelated workloads and therefore are not subtracted from the control estimate.
 
-## Why an alert storm is dangerous
+### Why an alert storm is dangerous
 
 The anomaly Lambda publishes once per anomalous event. A continuous `low_flow`, `blockage` or `shutdown` run can therefore attempt 7.776 million SNS publications and email deliveries in a month. The modeled SNS addition is **$159.41**: $3.89 in publish requests and $155.52 in email delivery, before free allowances or delivery throttling. It would also generate unusable customer notifications.
 
 Do not run a non-normal scenario unattended. Before any long-running test, implement a per-pump/per-rule cooldown, state-change deduplication and a maximum notification rate. Alarm on publication count as well as spend.
 
-## Highest-value cost changes
+### Highest-value cost changes
 
 1. Change the ingest Lambda from one S3 object per event to one JSON Lines object per Lambda batch. At the modeled six events per batch, continuous S3 PUT cost falls from **$38.88 to $6.48/month**, and the total falls from **$67.90 to $35.50**.
 2. Add anomaly cooldown and state-change deduplication before allowing any unattended scenario. This removes the $159/month modeled alert-storm exposure.
@@ -85,13 +102,13 @@ Do not run a non-normal scenario unattended. Before any long-running test, imple
 5. Keep the dashboard local by default and cache reads. Do not query Athena on browser polling.
 6. Destroy the realtime stack immediately after each demonstration and verify that the stream and both event-source mappings are absent.
 
-## Frozen-state checklist
+### Frozen-state checklist
 
 Frozen means the core stack may remain, while the realtime stack is absent and no Glue, crawler, Athena or simulator process is active. The $0.03 estimate assumes the documented storage envelope: S3 including CDK bootstrap <=1 GB, DynamoDB <=10 MB and retained logs <=100 MB. Every extra retained S3 GB adds about $0.023/month. `raw/batch/` and `curated/` currently have no automatic expiry, so inspect them rather than assuming frozen means zero.
 
 After a demo, run the documented realtime stop command, verify deletion in AWS, check for active Glue/crawler executions, and inspect Cost Explorer when billing data arrives. S3 lifecycle expiry is asynchronous; recent raw objects can remain briefly after their configured age.
 
-## Reproduce the estimate
+### Reproduce the estimate
 
 The calculator contains every assumption and unit price:
 
@@ -106,3 +123,41 @@ The calculator contains every assumption and unit price:
 ```
 
 The calculator is intentionally deterministic and conservative. Update its prices when changing region or after AWS changes a price. Use `--json` to capture the estimate beside a cloud run record.
+
+## Security and governance
+
+### Current baseline
+
+S3 blocks public access, uses SSE-S3 and enforces TLS. Workload code uses IAM roles and SDK credentials; no keys are embedded. Realtime read/failure-destination policies are attached from realtime and removed with it. Data remains in the selected region. The Glue role still uses the AWSGlueServiceRole managed policy and bucket-wide read/write access; this is a baseline to narrow, not a least-privilege completion claim.
+
+### Target access matrix: M4
+
+| Principal | Allowed | Must be denied |
+|---|---|---|
+| Producer | Put telemetry to the one stream | Read curated/customer data; delete stacks |
+| Ingest | Write raw/quarantine; conditional update latest state | Modify curated publication |
+| Detector | Read required state/rules; write alert history; publish one topic | Mutate analytics or infrastructure |
+| Batch | Read approved raw/metadata; write run output; catalog operations | Read unrelated buckets |
+| Local dashboard server | Bind to loopback; read allow-listed latest state and one approved KPI JSON location with operator credentials | LAN/public listener, raw/failure data, Kinesis, SNS publish, infrastructure writes |
+| Local dashboard browser | Read the loopback API without receiving AWS credentials | Direct S3/DynamoDB access, AWS Console, environment/configuration secrets |
+| Optional hosted Dashboard Lambda | Read allow-listed latest state and one approved KPI JSON location | Raw/failure data, Kinesis, SNS publish, infrastructure writes |
+| Optional hosted customer | Read authenticated dashboard API | Direct S3/DynamoDB access or another customer's view |
+| Analyst | Query approved catalog/workgroup and read approved data/results | Write raw, read quarantine, delete data |
+| Expiry worker | Delete/inspect exact realtime stack and required owned resources | Delete core or unrelated deployments |
+| Deployer | Manage this sandbox's project with reviewed changes | General production account access |
+
+Use IAM Identity Center/temporary credentials for operators. Future CI deployment should use constrained OIDC roles and protected environments. The included CI only performs offline checks and has no AWS credentials.
+
+### Negative evidence
+
+Test access with the actual intended principal: producer reading S3 denied; analyst writing raw denied; wrong bucket denied; insecure S3 request denied; expiry worker deleting core denied. Save redacted policy/version and error evidence. Template assertions alone cannot establish effective authorization.
+
+Optional governance lab: Lake Formation row/column access; KMS key-policy denial and recovery; synthetic PII masking. Cost and tear down these separately. Do not enable broad Macie scans, Config recorders or paid CloudTrail data events on the entire account just for this demo.
+
+### Ownership, audit and privacy
+
+Owner: capstone maintainer. Steward: demo operator. Data classification: synthetic public-shareable only after account IDs, emails and credentials are removed from artifacts. Customer telemetry must never be substituted without a separate data agreement and access design.
+
+Maintain glossary, schema version, input lineage, published run, retention policy and deletion record. Application logs should contain IDs and counters rather than full payloads. CloudTrail event history can support management-operation review; it is not a substitute for deliberately configured data-access audit coverage.
+
+No cross-region replication is in the base design. Region choice, deletion obligations and backup recovery belong in a customer deployment ADR. Full reset is irreversible without an export; current data resources are not production-protected.

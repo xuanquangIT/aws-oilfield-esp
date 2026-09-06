@@ -2,22 +2,34 @@
 
 A cost-aware AWS data engineering capstone for synthetic electric submersible pump (ESP) surveillance. The business story connects operational fault visibility with historical production analysis.
 
-**Status: foundation hardened; the Phase 1 complete-product scope now includes a local-first realtime web dashboard, with implementation gates still open.** No AWS deployment, dashboard implementation, real Glue run, billing result or end-to-end cloud evidence is claimed. See [project status](PROJECT-STATUS.md).
+**Scope: this repository will implement the complete batch-and-realtime data product from ingestion through consumer use.** Current status is foundation only: no AWS deployment, dashboard implementation, real Glue run, billing result or end-to-end cloud evidence is claimed. See [project status](PROJECT-STATUS.md).
+
+## Phase 1 scope commitment
+
+```text
+Historical CSV + realtime ESP events
+  -> validate and normalize
+  -> raw archive or quarantine
+  -> canonical silver and daily gold KPIs
+  -> catalog and Athena query
+  -> approved KPI publication
+  -> local read API and realtime customer dashboard
+```
+
+Both sources must reconcile into the published analytical result. The dashboard consumes latest operational state from DynamoDB and the approved KPI publication from S3; it is not a mock or a separate data store. The hosted CloudFront/API Gateway/Cognito profile remains optional because the local-first dashboard completes the required consumer flow with no new fixed AWS cost.
 
 ## Start here
 
 | Intent | Read / run |
 |---|---|
 | Understand the product and navigate | [Documentation hub](docs/00-START-HERE.md) |
-| Install and validate without AWS | [Quickstart](docs/01-QUICKSTART.md) |
+| Install, validate and deploy | [Getting started](docs/01-GETTING-STARTED.md) |
 | Understand current and target architecture | [Architecture](docs/02-ARCHITECTURE.md) |
-| Control spend and downtime | [Cost control](docs/03-COST-CONTROL.md) |
-| Compare monthly operating scenarios | [Monthly cost estimate](docs/18-MONTHLY-COST-ESTIMATE.md) |
-| Plan demo start and freeze time | [Operating time estimate](docs/19-OPERATING-TIME-ESTIMATE.md) |
-| Learn by rebuilding each layer | [Build it yourself](docs/20-BUILD-IT-YOURSELF.md) |
-| Implement the next milestone | [Delivery plan](docs/11-DELIVERY-PLAN.md) |
-| Prepare a customer demonstration | [Demo and portfolio](docs/09-PORTFOLIO.md) |
-| Track AWS DEA-C01 learning | [Coverage matrix](docs/06-DEA-C01-MAPPING.md) |
+| Understand telemetry and domain scope | [Data domain and contract](docs/03-DATA-DOMAIN-AND-CONTRACT.md) |
+| Run, park, recover and troubleshoot | [Operations](docs/04-OPERATIONS.md) |
+| Control cost, access and governance | [Cost and security](docs/05-COST-AND-SECURITY.md) |
+| Implement milestones and study DEA-C01 | [Delivery and learning](docs/06-DELIVERY-AND-LEARNING.md) |
+| Build and present the dashboard | [Demo and dashboard](docs/07-DEMO-AND-DASHBOARD.md) |
 
 ## Operating model
 
@@ -34,7 +46,7 @@ Current gross planning estimates in `us-east-1` are approximately **$0.03/month 
 ## Workspace map
 
 ```text
-docs/                 architecture, runbooks, plan, sources, learning
+docs/                 eight primary guides plus architecture decisions
 docs/adr/             architectural decisions and trade-offs
 infrastructure/       two AWS CDK stacks
 src/                  deployed stream, anomaly and Glue code

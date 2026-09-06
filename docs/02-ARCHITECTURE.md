@@ -1,6 +1,6 @@
 # Architecture
 
-![High-level AWS architecture](assets/offshore-esp-aws-architecture.svg)
+![High-level AWS architecture](assets/offshore-esp-aws-architecture.png)
 
 ## Product question
 
@@ -29,7 +29,7 @@ The PowerShell batch wrapper waits for Step Functions, then runs the crawler. Th
 
 Core owns storage, application Lambdas, catalog, Glue job/crawler, workgroup, workflow, disabled schedule and budget. Realtime owns Kinesis, mappings and the policies that grant stream reads. It references core outputs; core never references realtime. Core must exist before exclusive realtime deployment.
 
-## Target integrated pipeline: M1-M4, not yet implemented
+## Committed Phase 1 implementation scope: M1-M5
 
 ```mermaid
 flowchart LR
@@ -45,14 +45,18 @@ flowchart LR
     ETL --> SILVER[Run-scoped silver Parquet]
     SILVER --> GOLD[Daily pump KPI + quality summary]
     GOLD --> CHECK[Reconcile counts + publish approved run]
-    CHECK --> SQL[Athena + local customer report]
+    CHECK --> PUB[Approved KPI JSON + publication pointer]
+    PUB --> SQL[Athena query and report]
+    STATE --> API[Local read API]
+    PUB --> API
+    API --> UI[Local consumer dashboard]
 ```
 
-The raw layer preserves evidence; silver provides canonical typed events; gold answers business questions. No warehouse is required. Phase 1 includes a browser dashboard as a required deliverable, but its code is not implemented yet.
+The raw layer preserves evidence; silver provides canonical typed events; gold answers business questions. The approved publication is the analytical contract consumed by Athena and the dashboard, while DynamoDB latest state supplies the operational view. No warehouse is required. This end-to-end flow is committed Phase 1 scope; its implementation and AWS evidence remain open.
 
-## Phase 1 local web dashboard: required, not yet implemented
+## Phase 1 local web dashboard: required consumer layer
 
-The default dashboard runs only on the operator's laptop during a demo. It adds no deployed AWS resource and no fixed monthly dashboard charge. A loopback-only local API uses the operator's existing AWS credential chain; credentials never enter browser code.
+The default dashboard runs only on the operator's laptop during a demo. It is the required consumer layer for this project and adds no deployed AWS resource or fixed monthly dashboard charge. A loopback-only local API uses the operator's existing AWS credential chain; credentials never enter browser code.
 
 ```mermaid
 flowchart LR
@@ -68,7 +72,7 @@ This mode can still create small usage-based DynamoDB and S3 request charges; th
 
 ## Optional hosted dashboard profile: outside the required idle baseline
 
-For a time-limited customer link, an optional stack can use CloudFront, a separate private S3 web-assets bucket with Origin Access Control, API Gateway HTTP API, Cognito JWT authorization and a read-only Dashboard Lambda. This stack is deployed only on request, measured and destroyed afterward. It reuses the existing DynamoDB table and approved KPI object rather than creating duplicate data stores. Details and release gates are in the [dashboard design](17-REALTIME-WEB-DASHBOARD.md).
+For a time-limited customer link, an optional stack can use CloudFront, a separate private S3 web-assets bucket with Origin Access Control, API Gateway HTTP API, Cognito JWT authorization and a read-only Dashboard Lambda. This stack is deployed only on request, measured and destroyed afterward. It reuses the existing DynamoDB table and approved KPI object rather than creating duplicate data stores. Details and release gates are in [demo and dashboard](07-DEMO-AND-DASHBOARD.md).
 
 ## Reliability decisions
 
@@ -92,4 +96,4 @@ Default simulator load is three records per tick at roughly one tick/second. One
 
 For sustained ingestion, evaluate buffered writes or Firehose, then compaction. For stateful windows and watermarks, evaluate Flink. For high-concurrency warehouse consumers, evaluate Redshift. For industrial integration, evaluate IoT services and domain-specific access requirements. These are architecture exercises or temporary extension labs, not always-on baseline resources.
 
-See [architecture decisions](adr/README.md), [contract](12-DATA-CONTRACT.md) and [delivery plan](11-DELIVERY-PLAN.md).
+See [architecture decisions](adr/README.md), [data domain and contract](03-DATA-DOMAIN-AND-CONTRACT.md), and [delivery and learning](06-DELIVERY-AND-LEARNING.md).

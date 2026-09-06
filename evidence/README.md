@@ -4,4 +4,4 @@
 
 Use [templates/cloud-run.json](templates/cloud-run.json) for a real cloud run. Keep private run artifacts under runs/ (ignored); publish only redacted copies. The template intentionally leaves outcomes unknown/not_run.
 
-A release claim must reference the corresponding gate in [acceptance](../docs/14-ACCEPTANCE-EVIDENCE.md).
+A release claim must reference the corresponding gate in [delivery and acceptance](../docs/06-DELIVERY-AND-LEARNING.md).

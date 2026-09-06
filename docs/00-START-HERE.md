@@ -1,40 +1,25 @@
 # Documentation hub
 
-**Goal:** one coherent ESP data product showing batch engineering, streaming reliability, cost control and explainable business outputs.
+The project documentation has eight primary documents. Each has one owner and one purpose; detailed decisions remain in ADRs.
 
-For the owner: start with [status](../PROJECT-STATUS.md), [delivery plan](11-DELIVERY-PLAN.md) and [cost model](03-COST-CONTROL.md). The most valuable next implementation is a shared telemetry contract and replay-safe ingestion, followed by batch/realtime reconciliation.
-
-## Reading routes
-
-| Audience | Route |
+| Document | Use it for |
 |---|---|
-| Builder | Quickstart -> architecture -> data contract -> delivery plan -> operations |
-| Customer / interviewer | Portfolio -> architecture -> evidence and acceptance |
-| DEA-C01 learner | Mapping -> guided labs -> batch/realtime runbooks -> teach-back |
-| Operator | Quickstart -> cost control -> operations -> troubleshooting |
+| [Getting started](01-GETTING-STARTED.md) | Local setup, AWS authentication, bootstrap, first deploy and reset |
+| [Architecture](02-ARCHITECTURE.md) | Current dataflow, target pipeline, stack boundaries and trade-offs |
+| [Data domain and contract](03-DATA-DOMAIN-AND-CONTRACT.md) | ESP meaning, representative sources, units, schemas, validation and lineage |
+| [Operations](04-OPERATIONS.md) | Batch/realtime runs, observation, parking, recovery, timing and troubleshooting |
+| [Cost, security and governance](05-COST-AND-SECURITY.md) | Monthly scenarios, cost controls, IAM boundaries, audit and data governance |
+| [Delivery, acceptance and learning](06-DELIVERY-AND-LEARNING.md) | M0-M6 implementation, evidence gates, DEA-C01 coverage and guided labs |
+| [Demo and dashboard](07-DEMO-AND-DASHBOARD.md) | Local dashboard contract, optional hosted profile and customer rehearsal |
+| [Sources](08-SOURCES.md) | Official AWS and equipment references |
 
-## Index
+Recommended routes:
 
-1. [Quickstart](01-QUICKSTART.md): local checks and explicit AWS steps.
-2. [Architecture](02-ARCHITECTURE.md): current implementation and target pipeline.
-3. [Cost control](03-COST-CONTROL.md): operating states, guardrails and residual costs.
-4. [Realtime](04-REALTIME-DEMO.md): scenarios, expected results, limitations.
-5. [Batch](05-BATCH-ANALYTICS.md): existing job, SQL, evolution.
-6. [DEA-C01 mapping](06-DEA-C01-MAPPING.md): all 17 task groups.
-7. [Operations](07-OPERATIONS.md): start, inspect, park, reset, recover.
-8. [Troubleshooting](08-TROUBLESHOOTING.md): symptoms and recovery.
-9. [Portfolio](09-PORTFOLIO.md): customer narrative and rehearsal.
-10. [Domain notes](10-DOMAIN-NOTES.md): synthetic signal assumptions and units.
-11. [Delivery plan](11-DELIVERY-PLAN.md): dependencies, work items, pass criteria.
-12. [Data contract](12-DATA-CONTRACT.md): current fields and target v1.
-13. [Security](13-SECURITY-GOVERNANCE.md): access matrix, audit, privacy.
-14. [Acceptance](14-ACCEPTANCE-EVIDENCE.md): measurable gates and evidence.
-15. [Learning labs](15-LEARNING-LABS.md): build, break, recover, explain, clean.
-16. [Sources](16-SOURCES.md): official references reviewed on 2026-09-05.
-17. [Realtime web dashboard](17-REALTIME-WEB-DASHBOARD.md): required Phase 1 local dashboard and optional hosted profile.
-18. [Monthly cost estimate](18-MONTHLY-COST-ESTIMATE.md): frozen, intermittent, daily and continuous scenarios.
-19. [Operating time estimate](19-OPERATING-TIME-ESTIMATE.md): parked-to-demo, warm-up, freeze and rebuild timings.
-20. [Build it yourself](20-BUILD-IT-YOURSELF.md): reconstruct the project layer by layer and prove each decision.
-21. [Decisions](adr/README.md): choices and their consequences.
+- Builder: Getting started -> Architecture -> Data -> Delivery -> Operations.
+- Operator: Getting started -> Operations -> Cost and security.
+- Customer or interviewer: Architecture -> Demo and dashboard -> Acceptance section in Delivery.
+- DEA-C01 learner: Architecture -> Delivery and learning -> Operations -> Cost and security.
 
-Documents are English for reuse with customers and contributors. Operational commands target Windows PowerShell. Use links from this hub rather than copying isolated commands without their preconditions.
+Phase 1 scope is a complete flow from batch/realtime ingestion through validated publication, Athena query and local consumer dashboard. Start with [project status](../PROJECT-STATUS.md) for the implemented/planned boundary; it is incomplete until M1-M5 pass their evidence gates.
+
+Documents are written in English for customer and contributor reuse. Commands target Windows PowerShell.

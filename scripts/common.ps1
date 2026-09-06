@@ -5,8 +5,8 @@ Set-Location $script:ProjectRoot
 $script:ProjectPrefix = (Get-Content (Join-Path $script:ProjectRoot 'cdk.json') -Raw | ConvertFrom-Json).context.project_prefix
 $script:ProjectPython = Join-Path $script:ProjectRoot '.venv/Scripts/python.exe'
 $script:ProjectCdk = Join-Path $script:ProjectRoot 'node_modules/.bin/cdk.cmd'
-if (!(Test-Path $script:ProjectPython)) { throw 'Create .venv and install requirements first. See docs/01-QUICKSTART.md.' }
-if (!(Test-Path $script:ProjectCdk)) { throw 'Run npm ci first. See docs/01-QUICKSTART.md.' }
+if (!(Test-Path $script:ProjectPython)) { throw 'Create .venv and install requirements first. See docs/01-GETTING-STARTED.md.' }
+if (!(Test-Path $script:ProjectCdk)) { throw 'Run npm ci first. See docs/01-GETTING-STARTED.md.' }
 $env:PATH = "$(Split-Path $script:ProjectPython);$env:PATH"
 $env:AWS_PAGER = ''
 

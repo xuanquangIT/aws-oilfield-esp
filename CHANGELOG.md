@@ -2,9 +2,10 @@
 
 ## Unreleased — 2026-09-06
 
-- Added a reproducible us-east-1 gross-cost calculator and a researched monthly estimate for frozen, intermittent, daily-demo, continuous and alert-storm operation.
-- Added an operating-time estimate for parked-to-demo start, warm-up, freeze and full rebuild paths; all timings remain unmeasured until cloud rehearsals complete.
-- Added a build-it-yourself learning path that treats the current implementation as an answer key and teaches each batch, realtime, reliability, cost and dashboard layer separately.
+- Consolidated 21 overlapping topic files into eight primary guides with one source of truth for setup, data, operations, cost/security, delivery/learning, dashboard/demo and references.
+- Retained the full M1–M5 plan, DEA-C01 coverage, acceptance gates, cost/time models and synthetic equipment provenance while removing repeated navigation and explanations.
+- Declared the complete ingest-to-consumer flow as committed Phase 1 scope: both sources, validation, raw/quarantine, silver/gold, publication, Athena and the local dashboard.
+- Added a reproducible us-east-1 gross-cost calculator covering frozen, intermittent, daily-demo, continuous and alert-storm operation.
 - Identified per-event S3 PUTs and per-event SNS alerts as the main continuous-runtime cost risks; documented batching and notification cooldown priorities.
 - Made a local-first realtime web dashboard a required Phase 1 deliverable rather than a later hosted-only release item.
 - Defined a localhost read API, shared 10–15 second cache, batched latest-state reads, version-based KPI fetch and stale/unavailable behavior.

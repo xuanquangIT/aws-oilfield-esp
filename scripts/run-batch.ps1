@@ -14,4 +14,4 @@ Wait-AwsState -ReadState {
     if ([string]$result.LastCrawl.StartTime -eq [string]$previousCrawl) { return 'WAITING' }
     return $result.LastCrawl.Status
 } -Success 'SUCCEEDED' -Failure @('FAILED','CANCELLED') -TimeoutSeconds 900
-Write-Host 'ETL and crawler succeeded. Run the SQL in docs/05-BATCH-ANALYTICS.md using the project Athena workgroup.'
+Write-Host 'ETL and crawler succeeded. Run the SQL in docs/04-OPERATIONS.md using the project Athena workgroup.'

@@ -1,4 +1,4 @@
-# Quickstart
+# Getting started
 
 ## Local setup: no AWS resources
 
@@ -52,9 +52,11 @@ The default prefix is in cdk.json. Scripts read it from there; do not supply an 
 .\scripts\run-batch.ps1
 ```
 
-Replace the email placeholder. Pass the same email on subsequent core deploys or notifications are removed. Budget is account-wide, USD 5, actual-spend alerts at 50/100%. SNS anomaly subscription is separate; see [operations](07-OPERATIONS.md).
+Replace the email placeholder. Pass the same email on subsequent core deploys or notifications are removed. The USD 5 budget is filtered to the project tag after that cost-allocation tag is activated. SNS anomaly subscription is separate; see [operations](04-OPERATIONS.md).
 
-The batch wrapper waits for Step Functions success, then starts and checks the crawler. Query through the project Athena workgroup using [batch instructions](05-BATCH-ANALYTICS.md).
+After the first tagged resources appear, open AWS Billing and Cost Management -> Cost allocation tags, activate the user-defined `Project` tag, and verify that `oilfield-esp` appears before relying on the filtered budget. Tag activation and cost data are not retroactive evidence for earlier usage.
+
+The batch wrapper waits for Step Functions success, then starts and checks the crawler. Query through the project Athena workgroup using [batch instructions](04-OPERATIONS.md).
 
 ## Realtime and parking
 
@@ -75,6 +77,6 @@ Export any data/evidence you need. Then:
 .\scripts\destroy-all.ps1 -DeleteData
 ```
 
-This removes both project stacks and their S3/DynamoDB data. It does not remove shared CDK bootstrap assets or all service-created logs. Follow the [post-reset checklist](07-OPERATIONS.md).
+This removes both project stacks and their S3/DynamoDB data. It does not remove shared CDK bootstrap assets or all service-created logs. Follow the [post-reset checklist](04-OPERATIONS.md).
 
 To rebuild, repeat core deployment, seed/upload/batch and realtime. Original customer data is not recoverable merely by redeploying IaC; synthetic input can be regenerated.

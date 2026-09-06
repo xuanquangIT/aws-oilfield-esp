@@ -42,4 +42,12 @@ def test_disposable_runtime_and_cost_guards(tmp_path):
 def test_budget_email_is_explicit(tmp_path):
     core, _ = stacks(tmp_path, {'budget_email': 'test@example.invalid'})
     budget = next(iter(core.find_resources('AWS::Budgets::Budget').values()))['Properties']
+    assert budget['Budget']['CostFilters'] == {
+        'TagKeyValue': ['user:Project$test-esp']}
     assert [n['Notification']['Threshold'] for n in budget['NotificationsWithSubscribers']] == [50, 100]
+
+
+def test_core_resources_inherit_project_cost_allocation_tag(tmp_path):
+    core, _ = stacks(tmp_path)
+    glue_job = next(iter(core.find_resources('AWS::Glue::Job').values()))['Properties']
+    assert glue_job['Tags']['Project'] == 'test-esp'

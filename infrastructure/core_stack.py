@@ -15,6 +15,12 @@ class CoreStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, project_prefix: str, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
 
+        # Apply the project boundary to every taggable core resource so Billing
+        # can attribute its eligible charges to this project.
+        for key, value in {"Project": project_prefix, "Environment": "portfolio",
+                           "Lifecycle": "persistent", "CostCenter": "demo"}.items():
+            Tags.of(self).add(key, value)
+
         bucket = s3.Bucket(
             self, "DataBucket",
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
@@ -161,16 +167,11 @@ class CoreStack(Stack):
             budget=budgets.CfnBudget.BudgetDataProperty(
                 budget_type="COST",
                 time_unit="MONTHLY",
+                cost_filters={"TagKeyValue": [f"user:Project${project_prefix}"]},
                 budget_limit=budgets.CfnBudget.SpendProperty(amount=5.0, unit="USD"),
             ),
             notifications_with_subscribers=notifications,
         )
-
-        for resource in [bucket, state, topic, processor, anomaly]:
-            Tags.of(resource).add("Project", project_prefix)
-            Tags.of(resource).add("Environment", "portfolio")
-            Tags.of(resource).add("Lifecycle", "persistent")
-            Tags.of(resource).add("CostCenter", "demo")
 
         CfnOutput(self, "DataBucketName", value=bucket.bucket_name)
         CfnOutput(self, "StateTableName", value=state.table_name)

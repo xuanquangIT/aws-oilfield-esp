@@ -1,18 +1,22 @@
 # Project status
 
-Reviewed: 2026-09-06. This file is the implementation ledger; the delivery plan describes future work.
+Reviewed: 2026-09-06. This file is the implementation ledger; [delivery and learning](docs/06-DELIVERY-AND-LEARNING.md) describes future work and release gates.
+
+## Scope commitment
+
+This project will implement the complete closed-loop flow: historical CSV and realtime ESP ingestion, validation, raw/quarantine handling, canonical silver data, daily gold KPIs, catalog/Athena query, approved KPI publication, and a local consumer dashboard that reads real latest state and published KPIs. The table below distinguishes that committed scope from what exists today.
 
 | Area | Implemented now | Outstanding / proof required |
 |---|---|---|
 | Infrastructure | Core + disposable Kinesis; actual Lambda references; stream IAM owned by realtime | AWS create/delete/recreate smoke, permissions and service compatibility |
 | Idle cost | One shard only during demos; no ETL schedule; application logs expire after 7 days; Glue concurrency 1 / 10-minute timeout; reproducible gross-cost model | Cloud watchdog, runtime drain reconciliation, measured bill, service-created log retention |
-| Budget | Account-wide USD 5 monthly budget; optional actual-spend emails at 50/100% | Supply email on each core deploy; verify delivery; never a hard cap |
+| Budget | Project-tag-filtered USD 5 monthly budget; optional actual-spend emails at 50/100% | Activate/verify the `Project` cost-allocation tag, supply email on each core deploy and verify delivery; never a hard cap |
 | Batch | 504-row synthetic CSV -> Glue Spark -> partitioned Parquet; wrapper waits then runs crawler | Realtime union, quarantine, incremental/backfill, atomic publication, stable catalog |
 | Realtime | Three pumps, two Lambda consumers; S3 history, latest state, threshold SNS; bounded retry and S3 failure destination | Validation, event identity, idempotency, event-time ordering, cooldown, replay tool |
 | Operations | Checked native exit codes; root-relative paths; local dependency locks; finally cleanup; explicit data-delete switch | Cloud-side workflow completion and cleanup verification; client-independent expiry |
 | Security | S3 private / TLS / SSE-S3; workload roles; no embedded credentials | Prefix-level IAM refinement; negative access tests; governance and audit evidence |
 | Learning | All 17 DEA-C01 task groups mapped to project exercises or extension labs | Completing the matrix is not the same as passing the exam or implementing all skills |
-| Customer demo | Storyboard, Phase 1 local-first dashboard design, optional hosted profile, acceptance targets, evidence schema, SQL, architecture and risks | Local dashboard code, integrated KPI report, successful live rehearsal, controlled recovery and recorded incremental usage |
+| Consumer experience | Dashboard contract, optional hosted profile, acceptance targets, evidence schema and customer storyboard | Local dashboard code, real latest-state/KPI consumption, integrated report, successful live rehearsal, controlled recovery and recorded incremental usage |
 | Validation | See [latest local report](evidence/LOCAL-VALIDATION.md) | Local success is not AWS integration proof |
 
 ## Findings addressed in this revision
@@ -30,7 +34,7 @@ Reviewed: 2026-09-06. This file is the implementation ledger; the delivery plan 
 ## Release gates
 
 - Foundation: offline checks pass, commands are documented, limitations are explicit.
-- Phase 1 complete product: M1-M5 in the [delivery plan](docs/11-DELIVERY-PLAN.md) pass, including the local web dashboard.
+- Phase 1 complete product: M1-M5 in [delivery and learning](docs/06-DELIVERY-AND-LEARNING.md) pass, including the local web dashboard.
 - Customer rehearsal: Phase 1 passes twice, including dashboard startup, teardown and reconstruction.
 - Exam coverage: M6 exercises completed and explained; no inferred percentage of exam readiness.
 

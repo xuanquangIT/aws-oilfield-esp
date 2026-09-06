@@ -1,8 +1,12 @@
-# Phase 1 realtime web dashboard
+# Demo, dashboard and customer package
 
-Status: **required Phase 1 deliverable; design approved; implementation and evidence not yet complete.** Phase 1 cannot be called a complete customer product until this dashboard passes G10. The default profile is local-first so it introduces no new fixed monthly AWS service charge.
+This document defines the required local dashboard, optional hosted profile, customer narrative and rehearsal. The local dashboard is the required consumer layer in the committed Phase 1 flow; its implementation and evidence are still open.
 
-## Product boundary
+## Phase 1 realtime web dashboard
+
+Status: **required Phase 1 consumer deliverable; implementation and evidence not yet complete.** Phase 1 cannot be called a complete customer product until the dashboard consumes real latest state and approved KPIs, then passes G10. The default profile is local-first so it introduces no new fixed monthly AWS service charge.
+
+### Product boundary
 
 The dashboard gives an operator or customer a browser view of synthetic ESP health without requiring AWS Console access. It has two read models:
 
@@ -13,7 +17,7 @@ The dashboard gives an operator or customer a browser view of synthetic ESP heal
 
 “Realtime” means near-real-time observation of the latest state after a successful poll. It does not imply browser access to Kinesis, push delivery, zero latency or operational control. The page always shows `Synthetic data`, `Local demo`, `Last refreshed`, `Data age`, and the published batch run ID.
 
-## Required Phase 1 architecture: local profile
+### Required Phase 1 architecture: local profile
 
 ```mermaid
 flowchart LR
@@ -29,7 +33,7 @@ The server reads the three known ESP keys with a batched operation and caches th
 
 Stopping the local process removes the dashboard runtime. No CloudFront distribution, API Gateway, Cognito pool, dashboard Lambda, container, VM or web-assets bucket exists in the required profile.
 
-## API contract
+### API contract
 
 Expose these loopback-only, read-only endpoints:
 
@@ -44,13 +48,13 @@ The response allow list is: `esp_id`, `timestamp`, `status`, `scenario`, `flow_r
 
 Reject unknown pump IDs, unsupported parameters and non-loopback access. Never return raw records, Kinesis sequence numbers, failure payloads, CloudFormation outputs, account identifiers, arbitrary S3 keys, arbitrary Athena SQL, environment variables, credentials or exception stacks.
 
-## Frontend behavior
+### Frontend behavior
 
 The responsive single page contains three pump cards, latest status/severity, signal values, observation time/data age, daily KPI trend, data-quality state and published run ID. Fixture mode enables offline UI development and deterministic screenshots before AWS integration.
 
 Only one request can be in flight per browser. On an API failure, keep the last values with an explicit `stale` banner and last-success timestamp. After the configured stale threshold, show `unavailable`. Do not display stale values as live, infer missing samples as zero, or render unbounded raw-event charts.
 
-## Cost controls
+### Cost controls
 
 The required dashboard creates no new deployed AWS resource and no new fixed dashboard subscription. Incremental DynamoDB reads, S3 requests and transfer can still be billed; this is not a guaranteed $0 AWS bill.
 
@@ -65,13 +69,13 @@ Controls:
 
 A 60-minute rehearsal records browser polls, cache hits/misses, DynamoDB operations/capacity, S3 GETs/bytes, API latency, end-to-end freshness and eventually available billing. An unavailable bill is recorded as unavailable, not zero.
 
-## Optional hosted profile
+### Optional hosted profile
 
-An external customer URL is optional and outside the Phase 1 pass requirement. When explicitly needed, deploy a separate stack containing CloudFront, a separate private S3 web-assets bucket with Origin Access Control, API Gateway HTTP API, Cognito JWT authorization and a read-only Dashboard Lambda. It reuses the existing latest-state table and approved KPI object.
+An external customer URL is an optional delivery profile, not a separate data flow. When explicitly needed, deploy a separate stack containing CloudFront, a separate private S3 web-assets bucket with Origin Access Control, API Gateway HTTP API, Cognito JWT authorization and a read-only Dashboard Lambda. It reuses the existing latest-state table and approved KPI object.
 
 The optional stack has independent deploy/destroy commands, permissions, evidence and cost accounting. It is excluded from the parked baseline and destroyed after the sharing window. CloudFront uses Origin Access Control so the web-assets bucket remains private. [CloudFront OAC guidance](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/GettingStarted.SimpleDistribution.html), [API Gateway pricing](https://aws.amazon.com/api-gateway/pricing/), [CloudFront pricing](https://aws.amazon.com/cloudfront/pricing/), [Cognito pricing](https://aws.amazon.com/cognito/pricing/).
 
-## Delivery sequence
+### Delivery sequence
 
 1. Alongside M1: build responsive UI shell, fixture mode and response schema.
 2. After M2: connect local API to monotonic DynamoDB latest state and verify stale/error behavior.
@@ -79,7 +83,7 @@ The optional stack has independent deploy/destroy commands, permissions, evidenc
 4. After M4: complete permission, failure, cleanup and usage evidence.
 5. M5: run two complete customer rehearsals and publish redacted screenshots/recording.
 
-## G10 acceptance evidence
+### G10 acceptance evidence
 
 1. One command starts the server on `127.0.0.1`; one command/check stops it cleanly.
 2. A non-loopback request is rejected and no AWS credential appears in browser assets or API responses.
@@ -91,3 +95,51 @@ The optional stack has independent deploy/destroy commands, permissions, evidenc
 8. A clean machine can recreate the dashboard from lockfiles and fixture mode before AWS access.
 
 Store private evidence under `evidence/runs/`. Publish only redacted screenshots and recordings. Dashboard completion does not replace M1–M4 data correctness, recovery or lifecycle gates.
+
+## Customer demo and portfolio
+
+### Positioning
+
+**Cost-Aware Offshore ESP Data Platform**
+
+A synthetic equipment surveillance case connecting live telemetry with historical analytical quality, designed to be reconstructed on demand and parked with a small storage footprint.
+
+Until the integrated release gates pass, describe this as a prototype with a reviewed delivery plan. After M5 passes, support each stronger claim with a run record.
+
+### Business narrative
+
+An operations analyst needs to find abnormal pumps quickly, then determine whether the change persists over time. A data engineer must make that view trustworthy despite duplicated messages, missing readings, delayed uploads and reruns.
+
+Three deliverables make the story tangible:
+
+1. An operational view showing each pump's latest valid observation and data age.
+2. A daily analytical view showing flow/oil-rate trends, coverage and quality.
+3. A recovery and cost receipt showing replay correctness and teardown.
+
+These are Phase 1 deliverables; the current code offers DynamoDB/SNS inspection and basic Athena output, while dashboard code remains unimplemented. Phase 1 is not complete until the local-first web dashboard shows latest state and published KPI summaries and passes its acceptance gate. The optional CloudFront-hosted profile is not required for Phase 1 completion. See the [dashboard design](07-DEMO-AND-DASHBOARD.md).
+
+### 12-minute rehearsal
+
+Deploy and warm up before the meeting; show recorded deployment timing instead of waiting for CloudFormation live.
+
+| Time | Demonstration | Evidence |
+|---|---|---|
+| 0-2 min | Business problem, architecture and operating modes | Diagram + current run ID |
+| 2-5 min | Normal to low-flow contrast, latest-state freshness | Dashboard card + API response + alert + raw event |
+| 5-8 min | Same events in batch history and daily KPIs | Dashboard KPI panel + reconciliation counts + SQL result |
+| 8-10 min | Duplicate, invalid and late event; controlled replay | DQ/recovery output with expected counts |
+| 10-12 min | Park runtime; explain residual storage and bill | Stream absence + cost worksheet |
+
+M2/M3 recovery and reconciliation must exist before performing the full storyboard. For the current foundation, show only low_flow -> state/SNS/raw, then separate historical batch SQL and explain the remaining integration.
+
+### Acceptance targets, not achieved claims
+
+At three events/second, target p95 producer timestamp to latest-state observation <=15 seconds, zero unexplained accepted-event loss after drain, no backward state movement, and identical gold results on rerun. Measure producer clock quality and include invalid/duplicate accounting.
+
+Use flow deficit relative to a synthetic baseline as an analytical signal. Do not translate it into avoided downtime, revenue savings or real production loss without validated operating context.
+
+### Customer package
+
+Deliver architecture/ADRs, the local web dashboard, short recording, redacted run record, SQL output, recovery evidence, cost assumptions versus measured bill, and a rebuild guide. Publish sanitized screenshots or a recording for an always-available portfolio; keep the local dashboard and live AWS runtime off when unnecessary. Deploy the hosted dashboard profile only when an external customer URL is explicitly needed.
+
+Do not claim production offshore control, predictive-maintenance ML, field-proven alarm accuracy, real customer telemetry or a guaranteed zero bill. Include the source data's synthetic provenance.

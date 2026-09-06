@@ -1,3 +1,27 @@
+"""Synthetic normalized ESP telemetry producer.
+
+The generated event fuses placeholder downhole-gauge, surface VSD/SCADA, and
+production-meter signals. It is not the raw output of a single sensor such as
+the Phoenix xt150. Business meaning and units for its normalized fields:
+
+    flow_rate             liquid production rate, m3/day (instantaneous)
+    water_cut             fraction of liquid that is water, 0..1
+    intake_pressure       pump intake pressure, psi
+    discharge_pressure    pump discharge pressure, psi
+    tubing_pressure       tubing pressure, psi
+    casing_pressure       casing pressure, psi
+    intake_temperature    intake temperature, degrees Celsius
+    motor_temperature     motor temperature, degrees Celsius
+    vibration             illustrative vibration amplitude, mm/s
+    motor_current         motor electrical current, A
+    pump_frequency        pump operating frequency, Hz
+
+``timestamp`` is the UTC observation time. ``esp_id``, ``scenario`` and
+``status`` identify the synthetic pump and operating condition. These values
+are educational synthetic signals, not calibrated field measurements. The
+field provenance and scope are documented in ``docs/03-DATA-DOMAIN-AND-CONTRACT.md``.
+"""
+
 import argparse, json, math, random, time
 from datetime import datetime, timezone
 import boto3
