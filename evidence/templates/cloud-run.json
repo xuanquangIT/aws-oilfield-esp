@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "run_id": null,
+  "source_commit_or_hashes": null,
+  "dependency_lock_hashes": null,
+  "region": null,
+  "started_at_utc": null,
+  "finished_at_utc": null,
+  "evidence_level": "not_run",
+  "input": {
+    "manifest": null,
+    "acknowledged_events": null,
+    "unacknowledged_events": null
+  },
+  "processing": {
+    "accepted_unique": null,
+    "duplicates": null,
+    "rejected": null,
+    "unexplained_gap": null,
+    "p95_freshness_seconds": null
+  },
+  "batch": {
+    "execution_arn": null,
+    "glue_run_id": null,
+    "crawler_status": null,
+    "published_run": null,
+    "rerun_equal": null
+  },
+  "analytics": {
+    "result_path": null,
+    "athena_bytes_scanned": null
+  },
+  "cleanup": {
+    "realtime_stack_absent": null,
+    "stream_absent": null,
+    "mappings_absent": null,
+    "active_glue_runs": null,
+    "residual_resources": null,
+    "verified_at_utc": null
+  },
+  "cost": {
+    "status": "unavailable",
+    "estimated_usd": null,
+    "actual_usd": null,
+    "billing_observed_at_utc": null,
+    "scope": null
+  },
+  "gates": {
+    "G0": "not_run",
+    "G1": "not_run",
+    "G2": "not_run",
+    "G3": "not_run",
+    "G4": "not_run",
+    "G5": "not_run",
+    "G6": "not_run",
+    "G7": "not_run",
+    "G8": "not_run",
+    "G9": "not_run",
+    "G10": "not_run"
+  },
+  "dashboard": {
+    "status": "not_run",
+    "profile": "local",
+    "loopback_only_verified": null,
+    "browser_credentials_absent": null,
+    "response_allowlist_verified": null,
+    "p95_api_latency_ms": null,
+    "p95_freshness_seconds": null,
+    "stale_state_tested": null,
+    "browser_polls": null,
+    "cache_hits": null,
+    "cache_misses": null,
+    "dynamodb_read_operations": null,
+    "s3_get_operations": null,
+    "incremental_cost_status": "unavailable"
+  },
+  "artifact_paths": [],
+  "limitations": []
+}

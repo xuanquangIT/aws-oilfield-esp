@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+.venv/
+cdk.out/
+*.pyc
+data/historical.csv
+node_modules/
+.cache/
+.env
+*.pem
+cdk.context.json
+evidence/runs/
+data/exports/

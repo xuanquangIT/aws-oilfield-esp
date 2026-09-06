@@ -1,0 +1,8 @@
+{
+  "name": "oilfield-esp-capstone",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Reproducible AWS batch and streaming data engineering capstone",
+  "scripts": {"synth": "cdk synth --quiet --no-lookups", "diff": "cdk diff \"*\""},
+  "devDependencies": {"aws-cdk": "2.1140.0"}
+}
