@@ -211,6 +211,8 @@ Invoke-Checked $script:ProjectCdk @('destroy', "$script:ProjectPrefix-realtime",
 
 This proves the M2 exit gate in AWS: state is monotonic, a sustained anomaly sends one alert per episode (not one per record), and the replay tool can reprocess a failed batch.
 
+> **Verified 2026-09-07.** Conditional state: a newer-timestamp `ESP-101` record was accepted (numeric fields confirmed as DynamoDB `N`, not `S`); an older-timestamp record sent afterward for the same pump was rejected by the `ConditionExpression` and `LatestState` stayed unchanged, while both events still landed as distinct `event_id`-keyed objects in `raw/realtime/`. Alert cooldown: a 2-minute `low_flow` run (360 records across 3 pumps) produced exactly 4 `AlertState` episodes (3 active, 1 recovered) and exactly 5 `AWS/SNS NumberOfMessagesPublished` (CloudWatch), versus 159 emails for a comparable pre-M2 run. Test artifacts were deleted from `LatestState`/`AlertState`/S3 afterward. The replay tool was not exercised against a live failure payload in this pass (see the note at the end of this section).
+
 Deploy the realtime stack on its own, as in 6.5:
 
 ```powershell
