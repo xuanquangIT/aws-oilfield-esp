@@ -25,17 +25,17 @@ field groups below and optional `discharge_pressure`. `current_leakage` is a
 real Phoenix measurement but is **not currently emitted** by this simulator.
 It must not be confused with `motor_current`.
 
-| Event field(s) | Reference source or location | Scope in this simulator |
-|---|---|---|
-| `intake_pressure`, `intake_temperature` | Downhole intake gauge | Direct-style synthetic observations; no calibration, depth, or hydrostatic model. |
-| `discharge_pressure` | Optional downhole discharge gauge | Direct-style synthetic observation; it is present for every event although real installations may omit it. |
-| `motor_temperature`, `vibration` | Downhole motor/gauge instrumentation | Direct-style synthetic observations; no sensor accuracy, drift, or failure model. |
-| `current_leakage` | Phoenix downhole gauge | Out of scope: documented reference measurement, but absent from the current event schema. |
-| `motor_current`, `pump_frequency` | Surface VSD/SCADA | Synthetic electrical feedback/control values, not Phoenix readings; no VSD, cable-loss, phase-imbalance, or motor-curve model. |
-| `tubing_pressure`, `casing_pressure` | Usually surface wellhead/annulus instrumentation; completion-specific | Synthetic contextual pressures, not Phoenix gauge claims. |
-| `flow_rate`, `water_cut` | Production meter, well test, or virtual-rate calculation | Synthetic production values. They are not claimed to be direct Phoenix measurements; real systems may use a multiphase meter or a calibrated model. |
-| `status` | VSD/SCADA operating state | Only `RUNNING` or `SHUTDOWN` in the current generator; it is not a safety-system state model. |
-| `scenario` | Simulator metadata | Test label only. It is not a field instrument measurement and must not drive production-style detection rules. |
+| Event field(s)                          | Reference source or location                                          | Scope in this simulator                                                                                                                             |
+| --------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `intake_pressure`, `intake_temperature` | Downhole intake gauge                                                 | Direct-style synthetic observations; no calibration, depth, or hydrostatic model.                                                                   |
+| `discharge_pressure`                    | Optional downhole discharge gauge                                     | Direct-style synthetic observation; it is present for every event although real installations may omit it.                                          |
+| `motor_temperature`, `vibration`        | Downhole motor/gauge instrumentation                                  | Direct-style synthetic observations; no sensor accuracy, drift, or failure model.                                                                   |
+| `current_leakage`                       | Phoenix downhole gauge                                                | Out of scope: documented reference measurement, but absent from the current event schema.                                                           |
+| `motor_current`, `pump_frequency`       | Surface VSD/SCADA                                                     | Synthetic electrical feedback/control values, not Phoenix readings; no VSD, cable-loss, phase-imbalance, or motor-curve model.                      |
+| `tubing_pressure`, `casing_pressure`    | Usually surface wellhead/annulus instrumentation; completion-specific | Synthetic contextual pressures, not Phoenix gauge claims.                                                                                           |
+| `flow_rate`, `water_cut`                | Production meter, well test, or virtual-rate calculation              | Synthetic production values. They are not claimed to be direct Phoenix measurements; real systems may use a multiphase meter or a calibrated model. |
+| `status`                                | VSD/SCADA operating state                                             | Only `RUNNING` or `SHUTDOWN` in the current generator; it is not a safety-system state model.                                                       |
+| `scenario`                              | Simulator metadata                                                    | Test label only. It is not a field instrument measurement and must not drive production-style detection rules.                                      |
 
 For real flow-rate and water-cut measurement context, see the [SLB FloWatcher
 monitoring system](https://www.slb.com/products-and-services/innovating-in-oil-and-gas/completions/well-completions/permanent-monitoring/permanent-downhole-gauges/flowatcher-monitoring-system),
@@ -49,14 +49,14 @@ fields could originate. They are references only: this repository does not
 connect to any of them, implement their register maps, or reproduce their
 accuracy, sampling rate, alarms, or calibration requirements.
 
-| Normalized field(s) | Real-world reference | Correct demo interpretation |
-|---|---|---|
-| `motor_current`, `pump_frequency` | A [PowerFlex VFD manual](https://literature.rockwellautomation.com/idc/groups/literature/documents/um/22d-um001_-en-e.pdf) documents output frequency, commanded frequency, and output current as drive monitor values. An [SLB ESP VSD overview](https://www.slb.com/-/media/files/oilfield-review/p30-43-2) explains that VSD frequency controls induction-motor speed. | Surface VSD/SCADA telemetry, not Phoenix gauge data. `pump_frequency` is a command or drive-output value; `motor_current` is a synthetic output-current feedback value. |
-| `tubing_pressure`, `casing_pressure` | An [Emerson oil-production case study](https://www.emerson.com/en/measurement-instrumentation/industries/oil-and-gas/oil-production-company-increases-operational-efficiency-by-reducing-time-spent-at-wellsite) lists tubing and casing (annulus) applications for Rosemount 3051S pressure transmitters. | Two independent surface/wellhead pressure channels, not downhole Phoenix measurements. The simulator does not declare a tap location, transmitter range, or signal protocol. |
-| `flow_rate`, `water_cut` measured | The [SLB Vx Spectra surface multiphase flowmeter](https://www.slb.com/es/products-and-services/innovating-in-oil-and-gas/reservoir-characterization/reservoir-testing/surface-testing/surface-multiphase-flowmetering/vx-spectra-surface-multiphase-flowmeter) measures multiphase flow for production monitoring and distinguishes oil/water fractions. | Surface production-meter output. `water_cut` is derived from phase fractions; it is not a Phoenix field. |
-| `flow_rate`, `water_cut` estimated | An [SLB ESP-gauge virtual-rate workflow](https://www.slb.com/resource-library/technical-paper/al/spe-145542) describes calculating real-time liquid-rate and water-cut trends from downhole gauge data plus a model. | Calculated/estimated production values, not direct measurements. The current simulator does not implement the calibration model. |
-| `status`, production event context | [AVEVA Plant SCADA](https://www.aveva.com/content/dam/aveva/documents/onesheet/OneSheet_AVEVA_PlantSCADA-2003R2What%27sNew_24-01.pdf) documents state values that can be represented as alarms or events. | `RUNNING`/`SHUTDOWN` may come from VSD/SCADA state, not a sensor. The simulator has no PLC safety logic or alarm acknowledgement model. |
-| `scenario` | No physical sensor equivalent. | Simulator-only injected ground truth, used to test detection. A production system should instead retain separate SCADA `alarm_code`/`operating_mode` and maintenance-event records. |
+| Normalized field(s)                  | Real-world reference                                                                                                                                                                                                                                                                                                                                                      | Correct demo interpretation                                                                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `motor_current`, `pump_frequency`    | A [PowerFlex VFD manual](https://literature.rockwellautomation.com/idc/groups/literature/documents/um/22d-um001_-en-e.pdf) documents output frequency, commanded frequency, and output current as drive monitor values. An [SLB ESP VSD overview](https://www.slb.com/-/media/files/oilfield-review/p30-43-2) explains that VSD frequency controls induction-motor speed. | Surface VSD/SCADA telemetry, not Phoenix gauge data. `pump_frequency` is a command or drive-output value; `motor_current` is a synthetic output-current feedback value.             |
+| `tubing_pressure`, `casing_pressure` | An [Emerson oil-production case study](https://www.emerson.com/en/measurement-instrumentation/industries/oil-and-gas/oil-production-company-increases-operational-efficiency-by-reducing-time-spent-at-wellsite) lists tubing and casing (annulus) applications for Rosemount 3051S pressure transmitters.                                                                | Two independent surface/wellhead pressure channels, not downhole Phoenix measurements. The simulator does not declare a tap location, transmitter range, or signal protocol.        |
+| `flow_rate`, `water_cut` measured    | The [SLB Vx Spectra surface multiphase flowmeter](https://www.slb.com/es/products-and-services/innovating-in-oil-and-gas/reservoir-characterization/reservoir-testing/surface-testing/surface-multiphase-flowmetering/vx-spectra-surface-multiphase-flowmeter) measures multiphase flow for production monitoring and distinguishes oil/water fractions.                  | Surface production-meter output. `water_cut` is derived from phase fractions; it is not a Phoenix field.                                                                            |
+| `flow_rate`, `water_cut` estimated   | An [SLB ESP-gauge virtual-rate workflow](https://www.slb.com/resource-library/technical-paper/al/spe-145542) describes calculating real-time liquid-rate and water-cut trends from downhole gauge data plus a model.                                                                                                                                                      | Calculated/estimated production values, not direct measurements. The current simulator does not implement the calibration model.                                                    |
+| `status`, production event context   | [AVEVA Plant SCADA](https://www.aveva.com/content/dam/aveva/documents/onesheet/OneSheet_AVEVA_PlantSCADA-2003R2What%27sNew_24-01.pdf) documents state values that can be represented as alarms or events.                                                                                                                                                                 | `RUNNING`/`SHUTDOWN` may come from VSD/SCADA state, not a sensor. The simulator has no PLC safety logic or alarm acknowledgement model.                                             |
+| `scenario`                           | No physical sensor equivalent.                                                                                                                                                                                                                                                                                                                                            | Simulator-only injected ground truth, used to test detection. A production system should instead retain separate SCADA `alarm_code`/`operating_mode` and maintenance-event records. |
 
 For a credible customer demonstration, describe the payload as **one normalized
 synthetic ESP observation built from representative source lanes**. Do not say
@@ -79,17 +79,17 @@ change VSD frequency, or issue a shutdown instruction.
 
 These units are adopted as the documentation contract for existing synthetic numbers; they were previously unspecified and are not calibrated sensor measurements.
 
-| Field | Unit / meaning |
-|---|---|
-| flow_rate, oil_rate | Cubic metres/day, instantaneous synthetic rate |
-| water_cut | Fraction of liquid volume, 0..1 |
-| intake_pressure, discharge_pressure, tubing_pressure, casing_pressure | psi |
-| intake_temperature, motor_temperature | Degrees Celsius |
-| vibration | mm/s, illustrative amplitude without a specified sensor standard |
-| motor_current | A |
-| pump_frequency | Hz |
-| timestamp | UTC observation time |
-| status | RUNNING or SHUTDOWN in the current simulator |
+| Field                                                                 | Unit / meaning                                                   |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| flow_rate, oil_rate                                                   | Cubic metres/day, instantaneous synthetic rate                   |
+| water_cut                                                             | Fraction of liquid volume, 0..1                                  |
+| intake_pressure, discharge_pressure, tubing_pressure, casing_pressure | psi                                                              |
+| intake_temperature, motor_temperature                                 | Degrees Celsius                                                  |
+| vibration                                                             | mm/s, illustrative amplitude without a specified sensor standard |
+| motor_current                                                         | A                                                                |
+| pump_frequency                                                        | Hz                                                               |
+| timestamp                                                             | UTC observation time                                             |
+| status                                                                | RUNNING or SHUTDOWN in the current simulator                     |
 
 Oil rate = liquid flow × (1 - water cut). An average rate is not an integrated volume. For future time-weighted volume, integrate rate × elapsed seconds / 86400, cap gaps and report excluded duration. Do not assume missing readings mean zero production.
 
@@ -109,26 +109,28 @@ Customer-facing metrics must distinguish observed sample coverage, valid-event f
 
 ### Current wire formats
 
-Realtime JSON contains timestamp, esp_id, scenario, status and the signals defined in the domain model above. Historical CSV contains timestamp, esp_id, flow_rate, water_cut, intake_pressure, discharge_pressure, motor_temperature, motor_current, vibration and status.
+Realtime JSON and historical CSV both carry the schema v1 envelope (`schema_version`, `event_id`, `timestamp`, `esp_id`, `source`, `run_id`) plus the signals defined in the domain model above. Historical rows omit the optional pressure/frequency fields that the CSV never captured; missing values are preserved as null/absent, never silently interpreted as physical zero.
 
-Current code does not enforce the target contract below. There is no event_id/schema_version; historical data lacks several realtime fields. Missing values must not be silently interpreted as physical zero.
+`src/contract.py` is the single validator enforcing the target contract below. It is used by the producer (`simulator/esp_simulator.py`), the historical seed generator (`scripts/seed-batch-data.py`) and the realtime ingest transformation (`src/stream_processor/handler.py`), which quarantines anything the validator rejects under `quarantine/realtime/<rule_id>/...` instead of writing it to raw history or DynamoDB latest state. See `tests/fixtures/telemetry_v1.json` and `tests/test_contract.py` for the committed fixtures and their expected outcomes.
+
+Not yet implemented (M2/M3): conditional/monotonic DynamoDB updates, numeric (non-string) DynamoDB types, duplicate/late-arrival dedupe semantics, alert cooldown, and the historical+realtime union into silver/gold. The `duplicate` and `late` fixtures are structurally valid at this stage on purpose — single-record validation cannot detect either condition; only cross-record consumption logic can, and that is M2's job.
 
 ### Target telemetry v1: M1
 
-| Field | Type / rule |
-|---|---|
-| schema_version | Integer 1; unknown incompatible versions quarantined |
-| event_id | Producer-generated UUID/string; stable across retries/replays |
-| timestamp | ISO-8601 UTC with Z; observation/event time |
-| ingested_at | Platform-assigned UTC time, separate from event time |
-| esp_id | Registered synthetic pump identifier |
-| source | historical or realtime |
-| run_id | Producer run identity; separate batch/replay execution identities |
-| status | RUNNING, SHUTDOWN, UNKNOWN |
-| flow_rate, water_cut | Finite numbers; flow >=0; fraction within 0..1 |
-| motor_temperature, motor_current, vibration | Finite numbers with declared units; current/vibration >=0 |
-| pressure/frequency/other temperature fields | Optional where historical source omits them; preserve null |
-| scenario | Optional test label, excluded from production-style rule inputs |
+| Field                                       | Type / rule                                                       |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| schema_version                              | Integer 1; unknown incompatible versions quarantined              |
+| event_id                                    | Producer-generated UUID/string; stable across retries/replays     |
+| timestamp                                   | ISO-8601 UTC with Z; observation/event time                       |
+| ingested_at                                 | Platform-assigned UTC time, separate from event time              |
+| esp_id                                      | Registered synthetic pump identifier                              |
+| source                                      | historical or realtime                                            |
+| run_id                                      | Producer run identity; separate batch/replay execution identities |
+| status                                      | RUNNING, SHUTDOWN, UNKNOWN                                        |
+| flow_rate, water_cut                        | Finite numbers; flow >=0; fraction within 0..1                    |
+| motor_temperature, motor_current, vibration | Finite numbers with declared units; current/vibration >=0         |
+| pressure/frequency/other temperature fields | Optional where historical source omits them; preserve null        |
+| scenario                                    | Optional test label, excluded from production-style rule inputs   |
 
 Event identity is not the Kinesis sequence number, which changes when republishing. Historical adapters derive a stable ID from immutable source checksum and row number. Equal event IDs with differing payloads are conflicts, not arbitrary last-writer-wins.
 

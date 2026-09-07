@@ -1,17 +1,18 @@
 # Documentation hub
 
-The project documentation has eight primary documents. Each has one owner and one purpose; detailed decisions remain in ADRs.
+The project documentation has nine primary documents. Each has one owner and one purpose; detailed decisions remain in ADRs.
 
-| Document | Use it for |
-|---|---|
-| [Getting started](01-GETTING-STARTED.md) | Local setup, AWS authentication, bootstrap, first deploy and reset |
-| [Architecture](02-ARCHITECTURE.md) | Current dataflow, target pipeline, stack boundaries and trade-offs |
-| [Data domain and contract](03-DATA-DOMAIN-AND-CONTRACT.md) | ESP meaning, representative sources, units, schemas, validation and lineage |
-| [Operations](04-OPERATIONS.md) | Batch/realtime runs, observation, parking, recovery, timing and troubleshooting |
-| [Cost, security and governance](05-COST-AND-SECURITY.md) | Monthly scenarios, cost controls, IAM boundaries, audit and data governance |
-| [Delivery, acceptance and learning](06-DELIVERY-AND-LEARNING.md) | M0-M6 implementation, evidence gates, DEA-C01 coverage and guided labs |
-| [Demo and dashboard](07-DEMO-AND-DASHBOARD.md) | Local dashboard contract, optional hosted profile and customer rehearsal |
-| [Sources](08-SOURCES.md) | Official AWS and equipment references |
+| Document                                                         | Use it for                                                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [Getting started](01-GETTING-STARTED.md)                         | Local setup, AWS authentication, bootstrap, first deploy and reset                    |
+| [Architecture](02-ARCHITECTURE.md)                               | Current dataflow, target pipeline, stack boundaries and trade-offs                    |
+| [Data domain and contract](03-DATA-DOMAIN-AND-CONTRACT.md)       | ESP meaning, representative sources, units, schemas, validation and lineage           |
+| [Operations](04-OPERATIONS.md)                                   | Batch/realtime runs, observation, parking, recovery, timing and troubleshooting       |
+| [Cost, security and governance](05-COST-AND-SECURITY.md)         | Monthly scenarios, cost controls, IAM boundaries, audit and data governance           |
+| [Delivery, acceptance and learning](06-DELIVERY-AND-LEARNING.md) | M0-M6 implementation, evidence gates, DEA-C01 coverage and guided labs                |
+| [Demo and dashboard](07-DEMO-AND-DASHBOARD.md)                   | Local dashboard contract, optional hosted profile and customer rehearsal              |
+| [Sources](08-SOURCES.md)                                         | Official AWS and equipment references                                                 |
+| [Runbook](09-RUNBOOK.md)                                         | Single linear command reference: deploy, run every scenario, verify, park and destroy |
 
 Recommended routes:
 

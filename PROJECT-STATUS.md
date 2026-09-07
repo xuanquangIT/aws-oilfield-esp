@@ -1,23 +1,23 @@
 # Project status
 
-Reviewed: 2026-09-06. This file is the implementation ledger; [delivery and learning](docs/06-DELIVERY-AND-LEARNING.md) describes future work and release gates.
+Reviewed: 2026-09-07. This file is the implementation ledger; [delivery and learning](docs/06-DELIVERY-AND-LEARNING.md) describes future work and release gates.
 
 ## Scope commitment
 
 This project will implement the complete closed-loop flow: historical CSV and realtime ESP ingestion, validation, raw/quarantine handling, canonical silver data, daily gold KPIs, catalog/Athena query, approved KPI publication, and a local consumer dashboard that reads real latest state and published KPIs. The table below distinguishes that committed scope from what exists today.
 
-| Area | Implemented now | Outstanding / proof required |
-|---|---|---|
-| Infrastructure | Core + disposable Kinesis; actual Lambda references; stream IAM owned by realtime | AWS create/delete/recreate smoke, permissions and service compatibility |
-| Idle cost | One shard only during demos; no ETL schedule; application logs expire after 7 days; Glue concurrency 1 / 10-minute timeout; reproducible gross-cost model | Cloud watchdog, runtime drain reconciliation, measured bill, service-created log retention |
-| Budget | Project-tag-filtered USD 5 monthly budget; optional actual-spend emails at 50/100% | Activate/verify the `Project` cost-allocation tag, supply email on each core deploy and verify delivery; never a hard cap |
-| Batch | 504-row synthetic CSV -> Glue Spark -> partitioned Parquet; wrapper waits then runs crawler | Realtime union, quarantine, incremental/backfill, atomic publication, stable catalog |
-| Realtime | Three pumps, two Lambda consumers; S3 history, latest state, threshold SNS; bounded retry and S3 failure destination | Validation, event identity, idempotency, event-time ordering, cooldown, replay tool |
-| Operations | Checked native exit codes; root-relative paths; local dependency locks; finally cleanup; explicit data-delete switch | Cloud-side workflow completion and cleanup verification; client-independent expiry |
-| Security | S3 private / TLS / SSE-S3; workload roles; no embedded credentials | Prefix-level IAM refinement; negative access tests; governance and audit evidence |
-| Learning | All 17 DEA-C01 task groups mapped to project exercises or extension labs | Completing the matrix is not the same as passing the exam or implementing all skills |
-| Consumer experience | Dashboard contract, optional hosted profile, acceptance targets, evidence schema and customer storyboard | Local dashboard code, real latest-state/KPI consumption, integrated report, successful live rehearsal, controlled recovery and recorded incremental usage |
-| Validation | See [latest local report](evidence/LOCAL-VALIDATION.md) | Local success is not AWS integration proof |
+| Area                | Implemented now                                                                                                                                                                                         | Outstanding / proof required                                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Infrastructure      | Core + disposable Kinesis; actual Lambda references; stream IAM owned by realtime                                                                                                                       | AWS create/delete/recreate smoke, permissions and service compatibility                                                                                   |
+| Idle cost           | One shard only during demos; no ETL schedule; application logs expire after 7 days; Glue concurrency 1 / 10-minute timeout; reproducible gross-cost model                                               | Cloud watchdog, runtime drain reconciliation, measured bill, service-created log retention                                                                |
+| Budget              | Project-tag-filtered USD 5 monthly budget; optional actual-spend emails at 50/100%                                                                                                                      | Activate/verify the `Project` cost-allocation tag, supply email on each core deploy and verify delivery; never a hard cap                                 |
+| Batch               | 504-row synthetic CSV -> Glue Spark -> partitioned Parquet; wrapper waits then runs crawler; schema v1 envelope (schema_version/event_id/source/run_id), deterministic --seed/--start-time generation   | Realtime union, incremental/backfill, atomic publication, stable catalog                                                                                  |
+| Realtime            | Three pumps, two Lambda consumers; S3 history, latest state, threshold SNS; bounded retry and S3 failure destination; shared schema v1 validator with quarantine separation on ingest (src/contract.py) | Event identity dedupe/idempotency, event-time ordering, conditional/numeric DynamoDB state, alert cooldown, replay tool                                   |
+| Operations          | Checked native exit codes; root-relative paths; local dependency locks; finally cleanup; explicit data-delete switch                                                                                    | Cloud-side workflow completion and cleanup verification; client-independent expiry                                                                        |
+| Security            | S3 private / TLS / SSE-S3; workload roles; no embedded credentials                                                                                                                                      | Prefix-level IAM refinement; negative access tests; governance and audit evidence                                                                         |
+| Learning            | All 17 DEA-C01 task groups mapped to project exercises or extension labs                                                                                                                                | Completing the matrix is not the same as passing the exam or implementing all skills                                                                      |
+| Consumer experience | Dashboard contract, optional hosted profile, acceptance targets, evidence schema and customer storyboard                                                                                                | Local dashboard code, real latest-state/KPI consumption, integrated report, successful live rehearsal, controlled recovery and recorded incremental usage |
+| Validation          | See [latest local report](evidence/LOCAL-VALIDATION.md)                                                                                                                                                 | Local success is not AWS integration proof                                                                                                                |
 
 ## Findings addressed in this revision
 
@@ -30,6 +30,7 @@ This project will implement the complete closed-loop flow: historical CSV and re
 7. Long-lived Lambda logs and implicit Glue retries/concurrency lacked bounds; explicit controls added.
 8. Documentation contained unresolved citation tokens and service-name-only exam mapping; replaced with source links and an evidence-based plan.
 9. Core resource/output shared the AthenaWorkGroup construct ID and synthesis failed; output construct renamed while preserving the CloudFormation output key.
+10. M1's contract enforcement was implemented but unverified in AWS; redeployed core and reran batch (504/504 rows, 504 distinct event IDs, schema_version=1 via Athena) plus a manual Kinesis quarantine smoke test proving invalid records never reach raw/realtime or LatestState while valid ones do. See docs/09-RUNBOOK.md section 6.5.
 
 ## Release gates
 

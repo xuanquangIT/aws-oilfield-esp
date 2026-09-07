@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:ProjectRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $script:ProjectRoot
+$env:JSII_RUNTIME_PACKAGE_CACHE_ROOT = Join-Path $script:ProjectRoot '.cache/jsii'
 $script:ProjectPrefix = (Get-Content (Join-Path $script:ProjectRoot 'cdk.json') -Raw | ConvertFrom-Json).context.project_prefix
 $script:ProjectPython = Join-Path $script:ProjectRoot '.venv/Scripts/python.exe'
 $script:ProjectCdk = Join-Path $script:ProjectRoot 'node_modules/.bin/cdk.cmd'

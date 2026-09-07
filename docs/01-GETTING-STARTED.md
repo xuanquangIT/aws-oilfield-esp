@@ -17,6 +17,26 @@ If the Python launcher has no interpreter, use the absolute path to an installed
 
 Validation runs tests, checks documentation links and synthesizes both stacks without deploying. See [validation report](../evidence/LOCAL-VALIDATION.md). Synthesis does not validate AWS credentials, quotas or runtime permissions.
 
+## Build in this order
+
+Treat the project as a sequence of small evidence-backed exercises, not one large deployment. Do not begin a later milestone until the confirmation for the current one is understood and recorded.
+
+| Step | Do | Learn / confirm before continuing |
+|---|---|---|
+| 1. M0 local foundation | Install dependencies and run `validate.ps1` | Trace both data paths in [architecture](02-ARCHITECTURE.md); understand that local success is not AWS proof. |
+| 2. Read the baseline code | Read `app.py`, both stacks, the three handlers and the lifecycle scripts | Identify the persistent core, disposable realtime stack, raw S3 history, DynamoDB latest state, SNS alerts and Glue output. |
+| 3. Prepare AWS | Select one sandbox profile and region, then bootstrap | `aws sts get-caller-identity` returns the intended account and region. |
+| 4. Deploy core | Deploy the persistent stack with a budget email | CloudFormation exposes bucket, table, workflow, crawler, database and workgroup outputs. |
+| 5. Run batch baseline | Generate CSV, upload it, run the workflow/crawler and run Athena SQL | 504 source rows become partitioned Parquet and a catalog table. |
+| 6. Run realtime baseline | Run `normal`, then `low_flow`; observe state, raw objects and an optional SNS email | The one-shard stream and mappings are removed after each bounded demo. |
+| 7. M1 contract | Implement event identity, schema version, validation fixtures and quarantine | Valid, invalid, duplicate and late events have explicit outcomes. |
+| 8. M2 streaming correctness | Implement monotonic latest state, alert dedupe/cooldown and replay | A duplicate or older event cannot regress state or create unexplained side effects. |
+| 9. M3 analytical publication | Unite validated historical and realtime events into silver/gold and publish approved KPIs | Counts reconcile and a rerun/backfill does not damage an earlier good result. |
+| 10. M4 operations and security | Move completion/expiry into AWS, tighten roles and run recovery drills | The project can stop, recover and rebuild without depending on one laptop session. |
+| 11. M5 consumer dashboard | Build the local read API and dashboard from real DynamoDB and approved KPI data | Two rehearsals pass with measured freshness, stale/error behavior and cost evidence. |
+
+M1-M5 are implementation work, not features already provided by the baseline. Read the exact exit gates and tests in [delivery and learning](06-DELIVERY-AND-LEARNING.md) before changing each layer.
+
 ## Select an AWS sandbox
 
 The following commands make AWS requests, and deployment can incur charges. Use a dedicated sandbox, one region and one project prefix. Select the profile explicitly in each shell:
@@ -33,15 +53,19 @@ Use your existing authentication method if it is not IAM Identity Center. Confir
 
 ## Bootstrap and review
 
-Activate the virtual environment so CDK's configured python app resolves correctly:
+Load the project helper before invoking CDK directly. It selects the project virtual environment and keeps jsii's temporary package cache inside this workspace, avoiding an inaccessible shared cache on Windows:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
-.\node_modules\.bin\cdk.cmd bootstrap
-.\node_modules\.bin\cdk.cmd diff oilfield-esp-core
+. .\scripts\common.ps1
+Invoke-Checked $script:ProjectCdk @('bootstrap')
+Invoke-Checked $script:ProjectCdk @('diff', "$script:ProjectPrefix-core")
 ```
 
 The default prefix is in cdk.json. Scripts read it from there; do not supply an inconsistent prefix only on the CDK command line. Changing it creates another deployment rather than renaming the old one. Bootstrap is shared account/region infrastructure and persists after project reset.
+
+## First cloud walkthrough
+
+Keep the AWS Console open on CloudFormation, S3, DynamoDB, Step Functions, Glue, Athena and CloudWatch while running the commands below. Stop after each command and inspect its output; the point is to trace the data, not only reach a successful status.
 
 ## Core and batch
 
@@ -58,6 +82,8 @@ After the first tagged resources appear, open AWS Billing and Cost Management ->
 
 The batch wrapper waits for Step Functions success, then starts and checks the crawler. Query through the project Athena workgroup using [batch instructions](04-OPERATIONS.md).
 
+For the first run, verify the source row count (504), the `curated/telemetry/` Parquet objects and the crawler-created `telemetry` table before running the supplied daily KPI and quality SQL. Explain why raw CSV, Parquet and the Athena result location are different prefixes in the same bucket.
+
 ## Realtime and parking
 
 ```powershell
@@ -68,6 +94,8 @@ The batch wrapper waits for Step Functions success, then starts and checks the c
 The first command attempts teardown automatically. The second is the recovery command if interrupted or cleanup failed. Observe DynamoDB/SNS during the run; S3 and logs remain afterward. Do not run concurrent demo sessions against the same prefix: either session can destroy the other's stream.
 
 The 30-second grace period is not a drain guarantee. Do not promise delivery completeness until the reconciliation gate is implemented.
+
+Start with `normal` to learn the data path without alerts. Then use `low_flow` only after confirming the SNS email subscription. Observe a fresh DynamoDB item for each pump, the matching S3 raw object and the alert behavior before the script removes Kinesis. If the terminal is interrupted, use `realtime-stop.ps1` and complete the park checklist in [operations](04-OPERATIONS.md).
 
 ## Full reset
 
