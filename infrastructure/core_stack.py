@@ -107,6 +107,21 @@ class CoreStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
+        # Per-(esp_id, rule_id) alert cooldown/recovery outbox for the
+        # AnomalyDetector Lambda (M2). See src/anomaly_detector/handler.py.
+        alert_state = dynamodb.Table(
+            self,
+            "AlertState",
+            partition_key=dynamodb.Attribute(
+                name="esp_id", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="rule_id", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         topic = sns.Topic(self, "Alerts", display_name="ESP anomaly alerts")
 
         processor = lambda_.Function(
@@ -140,11 +155,21 @@ class CoreStack(Stack):
             self,
             "AnomalyDetector",
             runtime=lambda_.Runtime.PYTHON_3_12,
-            handler="handler.handler",
-            code=lambda_.Code.from_asset("src/anomaly_detector"),
+            handler="anomaly_detector.handler.handler",
+            # Bundled from src/ (not src/anomaly_detector/) so the shared
+            # contract.py module is available at runtime as a top-level
+            # import, matching StreamProcessor's bundling (see below) and
+            # tests/conftest.py's local import resolution.
+            code=lambda_.Code.from_asset(
+                "src", exclude=["stream_processor", "batch", "**/__pycache__"]
+            ),
             timeout=Duration.seconds(30),
             memory_size=256,
-            environment={"ALERT_TOPIC_ARN": topic.topic_arn},
+            environment={
+                "ALERT_TOPIC_ARN": topic.topic_arn,
+                "ALERT_STATE_TABLE": alert_state.table_name,
+                "ALERT_COOLDOWN_SECONDS": "300",
+            },
             log_group=logs.LogGroup(
                 self,
                 "AnomalyLogs",
@@ -153,6 +178,7 @@ class CoreStack(Stack):
             ),
         )
         topic.grant_publish(anomaly)
+        alert_state.grant_read_write_data(anomaly)
 
         role = iam.Role(
             self,
@@ -288,6 +314,7 @@ class CoreStack(Stack):
 
         CfnOutput(self, "DataBucketName", value=bucket.bucket_name)
         CfnOutput(self, "StateTableName", value=state.table_name)
+        CfnOutput(self, "AlertStateTableName", value=alert_state.table_name)
         CfnOutput(self, "AlertTopicArn", value=topic.topic_arn)
         CfnOutput(self, "StateMachineArn", value=state_machine.state_machine_arn)
         CfnOutput(self, "GlueCrawlerName", value=crawler.ref)

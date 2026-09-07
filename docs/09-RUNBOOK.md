@@ -88,7 +88,7 @@ Confirm the subscription from the email AWS sends ("AWS Notification - Subscript
 aws cloudformation describe-stacks --stack-name oilfield-esp-core --query 'Stacks[0].Outputs' --output table
 ```
 
-Expect: `DataBucketName`, `StateTableName`, `AlertTopicArn`, `StateMachineArn`, `GlueCrawlerName`, `GlueJobName`, `GlueDatabaseName`, `AthenaWorkGroup`.
+Expect: `DataBucketName`, `StateTableName`, `AlertStateTableName`, `AlertTopicArn`, `StateMachineArn`, `GlueCrawlerName`, `GlueJobName`, `GlueDatabaseName`, `AthenaWorkGroup`.
 
 ## 5. Batch scenario: deploy, run, verify
 
@@ -202,6 +202,58 @@ aws dynamodb get-item --table-name $table --key '{"esp_id":{"S":"<valid esp_id u
 Expected outcome: the three invalid payloads each produce one object under `quarantine/realtime/<RULE_ID>/<esp_id or "unknown">/...`, containing `rule_id`, `reason`, and the original `raw_base64` payload. None of them appear under `raw/realtime/`, and none of their `event_id` values appear in the `LatestState` table. The valid payload appears under both `raw/realtime/<esp_id>/...` and as the `LatestState` item for that `esp_id`.
 
 Always destroy the realtime stack manually afterward, since it was deployed outside `realtime-start.ps1`'s automatic cleanup:
+
+```powershell
+Invoke-Checked $script:ProjectCdk @('destroy', "$script:ProjectPrefix-realtime", '--exclusively', '--force')
+```
+
+### 6.6 Verify M2: conditional state, alert cooldown, and the replay tool
+
+This proves the M2 exit gate in AWS: state is monotonic, a sustained anomaly sends one alert per episode (not one per record), and the replay tool can reprocess a failed batch.
+
+Deploy the realtime stack on its own, as in 6.5:
+
+```powershell
+. .\scripts\common.ps1
+Invoke-Checked $script:ProjectCdk @('deploy', "$script:ProjectPrefix-realtime", '--exclusively', '--require-approval', 'never')
+```
+
+**Conditional latest state.** Send a valid record, then a second valid record for the same `esp_id` with an _earlier_ `timestamp` (a manufactured late arrival). Confirm both land in `raw/realtime/` (two objects, keyed by their distinct `event_id`s) but the `LatestState` item still shows the first (newer) timestamp, and its numeric fields (`flow_rate`, `motor_temperature`, `motor_current`, `vibration`) are DynamoDB Number type, not strings:
+
+```powershell
+$table = Get-CoreOutput 'StateTableName'
+aws dynamodb get-item --table-name $table --key '{"esp_id":{"S":"ESP-101"}}' --output json
+```
+
+A `Number` value appears in the JSON as `{"N": "120.0"}`, not `{"S": "120.0"}`.
+
+**Alert cooldown.** Run a short anomaly scenario (`low_flow` produced 159 emails before M2; it should now produce at most one or two):
+
+```powershell
+.\scripts\realtime-start.ps1 -DurationMinutes 2 -Scenario low_flow
+```
+
+Inspect the cooldown/recovery state:
+
+```powershell
+$alertTable = Get-CoreOutput 'AlertStateTableName'
+aws dynamodb scan --table-name $alertTable --output json
+```
+
+Expect one item per (esp_id, rule_id) that fired, each with `active=true`, an `episode_id`, and a `cooldown_until` roughly 5 minutes (`ALERT_COOLDOWN_SECONDS`, default 300) after the first trigger. Check your inbox: a 2-minute run should deliver far fewer than 159 emails (one per pump/rule that triggered, not one per record).
+
+**Replay tool.** The replay tool (`scripts/replay-failed.py`) reprocesses records referenced by a Kinesis on-failure-destination S3 pointer object. Triggering a real failure deliberately (for example, temporarily breaking the `StreamProcessor` function's S3 permission, sending a batch, then restoring it) is the only way to generate one; once you have a failure object's bucket/key:
+
+```powershell
+. .\scripts\common.ps1
+$env:DATA_BUCKET = Get-CoreOutput 'DataBucketName'
+$env:STATE_TABLE = Get-CoreOutput 'StateTableName'
+python scripts/replay-failed.py --bucket $env:DATA_BUCKET --key '<aws/lambda/... failure object key>'
+```
+
+This dry-run prints and saves a JSON receipt classifying each record (`would_process`/`would_quarantine`) with no side effects. Add `--execute` to actually apply them through the same `process_record` path the live Lambda uses. This step is optional and not required to consider M2 verified; the conditional-state and cooldown checks above are the primary evidence.
+
+Always destroy the realtime stack manually afterward if you deployed it outside `realtime-start.ps1`:
 
 ```powershell
 Invoke-Checked $script:ProjectCdk @('destroy', "$script:ProjectPrefix-realtime", '--exclusively', '--force')

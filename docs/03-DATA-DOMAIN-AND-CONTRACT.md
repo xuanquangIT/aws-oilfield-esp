@@ -97,7 +97,7 @@ Oil rate = liquid flow × (1 - water cut). An average rate is not an integrated 
 
 Low flow and blockage change multiple signals by explicit script assignments. Mechanical degradation is tick-driven. Gas slug creates a sine wave, while its current alert checks the scenario label. Sensor fault holds temperature constant without measuring stuck-sensor duration. Shutdown is always classified critical even when it could be a planned operational state.
 
-M2 should separate process anomaly, sensor quality and planned shutdown. Record thresholds per pump in reference data, version rules, and avoid scenario-label access in measured detection.
+M2's exit gate explicitly allows gas-slug/stuck-sensor temporal detection to remain deferred, so `GAS_SLUG_SIMULATION` in `src/anomaly_detector/handler.py` still reads the scenario label rather than a measured signal; low-flow detection was moved to measurements only (`LOW_FLOW_OVERHEAT`, `HIGH_TUBING_LOW_FLOW`). Separating process anomaly, sensor quality and planned shutdown, and moving thresholds into versioned per-pump reference data, remain open for a future milestone.
 
 ### Data products
 
@@ -113,7 +113,7 @@ Realtime JSON and historical CSV both carry the schema v1 envelope (`schema_vers
 
 `src/contract.py` is the single validator enforcing the target contract below. It is used by the producer (`simulator/esp_simulator.py`), the historical seed generator (`scripts/seed-batch-data.py`) and the realtime ingest transformation (`src/stream_processor/handler.py`), which quarantines anything the validator rejects under `quarantine/realtime/<rule_id>/...` instead of writing it to raw history or DynamoDB latest state. See `tests/fixtures/telemetry_v1.json` and `tests/test_contract.py` for the committed fixtures and their expected outcomes.
 
-Not yet implemented (M2/M3): conditional/monotonic DynamoDB updates, numeric (non-string) DynamoDB types, duplicate/late-arrival dedupe semantics, alert cooldown, and the historical+realtime union into silver/gold. The `duplicate` and `late` fixtures are structurally valid at this stage on purpose — single-record validation cannot detect either condition; only cross-record consumption logic can, and that is M2's job.
+M2 implemented the cross-record concerns this validator deliberately leaves out: `src/stream_processor/handler.py` now writes DynamoDB latest state conditionally (accepts only a strictly newer `timestamp`; an equal timestamp is resolved first-writer-wins), stores measurements as DynamoDB Number types instead of strings, and keys raw history objects by `event_id` (stable replay identity) instead of the Kinesis sequence number (transport metadata). `src/anomaly_detector/handler.py` adds a per-(esp_id, rule_id) cooldown/recovery outbox (`AlertState` table) with deterministic alert IDs, so a sustained anomaly sends one alert per episode instead of one per record. `simulator/esp_simulator.py` retries a transient/throttled send with bounded backoff before giving up, and `scripts/replay-failed.py` replays an S3 on-failure-destination payload through the same validation/write path. The `duplicate` and `late` fixtures in `tests/fixtures/telemetry_v1.json` now double as the M2 regression fixtures for this behavior; see `tests/test_stream_processor.py` and `tests/test_anomaly_detector.py`. Not yet implemented (M3): the historical+realtime union into silver/gold.
 
 ### Target telemetry v1: M1
 

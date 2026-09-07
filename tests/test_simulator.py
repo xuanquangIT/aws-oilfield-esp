@@ -1,8 +1,10 @@
 import random
 from datetime import datetime, timezone
 
+from botocore.exceptions import ClientError
+
 from contract import SCHEMA_VERSION, validate
-from simulator.esp_simulator import build_event, signal
+from simulator.esp_simulator import build_event, put_with_retry, signal
 
 
 def test_normal():
@@ -52,3 +54,40 @@ def test_build_event_non_deterministic_ids_differ():
         "ESP-101", 5, "normal", random.Random(2), now, "run-y", deterministic=False
     )
     assert a["event_id"] != b["event_id"]
+
+
+def _throttle_error():
+    return ClientError(
+        {"Error": {"Code": "ProvisionedThroughputExceededException", "Message": "x"}},
+        "PutRecord",
+    )
+
+
+def test_put_with_retry_recovers_after_transient_failures(monkeypatch):
+    monkeypatch.setattr("simulator.esp_simulator.time.sleep", lambda s: None)
+    calls = {"n": 0}
+
+    class FlakyClient:
+        def put_record(self, **kwargs):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise _throttle_error()
+            return {"ShardId": "shard-1", "SequenceNumber": "1"}
+
+    ok = put_with_retry(FlakyClient(), "stream", {"esp_id": "ESP-101"})
+    assert ok is True
+    assert calls["n"] == 3
+
+
+def test_put_with_retry_gives_up_after_max_attempts(monkeypatch):
+    monkeypatch.setattr("simulator.esp_simulator.time.sleep", lambda s: None)
+    calls = {"n": 0}
+
+    class AlwaysFails:
+        def put_record(self, **kwargs):
+            calls["n"] += 1
+            raise _throttle_error()
+
+    ok = put_with_retry(AlwaysFails(), "stream", {"esp_id": "ESP-101"}, max_attempts=3)
+    assert ok is False
+    assert calls["n"] == 3

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — 2026-09-07 (M2)
+
+- Implemented M2 (reliable streaming) per `docs/06-DELIVERY-AND-LEARNING.md`:
+    - `src/stream_processor/handler.py`: DynamoDB latest-state writes are now conditional on `timestamp` (accepts a strictly newer event only; an exact tie is first-writer-wins), so late-arriving or duplicate-delivered records can never regress or duplicate state. Measurements are stored as DynamoDB Number types (`Decimal`) instead of strings. The raw history object key is now the event's own `event_id` (stable replay identity) instead of the Kinesis sequence number (transport metadata), so replaying/redelivering the same event is an idempotent overwrite.
+    - `src/anomaly_detector/handler.py`: rewritten around a per-(esp_id, rule_id) cooldown/recovery outbox in a new `AlertState` DynamoDB table, with deterministic alert IDs (`uuid5`) so a downstream subscriber can dedupe a possible duplicate send. SNS is published before the state row is recorded, so a crash between the two can at most duplicate an alert, never silently drop one. Fixes the alert-storm behavior that sent 159 emails in one `low_flow` demo; a sustained anomaly now sends exactly one trigger alert per episode plus one recovery alert when it clears.
+    - `simulator/esp_simulator.py`: each Kinesis `put_record` is retried with bounded exponential backoff and jitter on a transient/throttling failure, always resending the same event (`event_id` is never regenerated on retry). A send that exhausts all retries is appended to `data/producer-failures.jsonl` instead of crashing the run; the run prints an acknowledged/failed summary.
+    - Added `scripts/replay-failed.py`: downloads a Kinesis on-failure-destination S3 pointer object, re-fetches the failed records from Kinesis by sequence number, and replays them through the exact same `process_record` logic as the live Lambda (dry-run by default; `--execute` to apply), writing a JSON replay receipt.
+    - `infrastructure/core_stack.py`: added the `AlertState` DynamoDB table (partition key `esp_id`, sort key `rule_id`); `AnomalyDetector` is now bundled from `src/` (not `src/anomaly_detector/`) so it can share `contract.py`, matching `StreamProcessor`'s M1 bundling.
+    - Added `tests/test_stream_processor.py` and `tests/test_anomaly_detector.py`: offline exit-gate tests using hand-rolled S3/DynamoDB/SNS fakes (no AWS calls) proving monotonic state, no-event-disappears accounting against the `duplicate`/`late` fixtures, and the cooldown/recovery regression (50 consecutive anomalies -> 1 alert).
+    - Historical+realtime union into silver/gold remains explicitly out of scope until M3.
+
 ## Unreleased — 2026-09-07
 
 - Fixed `AWS::Glue::Job BatchJob` failing to deploy ("Script location cannot be null or empty") by replacing raw dicts with typed `glue.CfnJob.JobCommandProperty`/`ExecutionPropertyProperty` structs in `infrastructure/core_stack.py`.

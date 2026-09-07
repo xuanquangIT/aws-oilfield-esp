@@ -26,6 +26,13 @@ Every event sent to Kinesis is wrapped in the schema v1 contract envelope
 With ``--seed`` and ``--start-time``, generation is fully deterministic:
 signal values, timestamps and event_ids are all reproducible, which is what
 lets a fixture checksum stay stable across runs (see docs/06-DELIVERY-AND-LEARNING.md, M1).
+
+M2: each send is retried with bounded exponential backoff on a transient or
+throttling failure, always resending the exact same event (event_id is never
+regenerated on retry). A send that still fails after all attempts is appended
+to ``data/producer-failures.jsonl`` for manual reconciliation or replay,
+rather than crashing the run or silently vanishing; the run prints an
+acknowledged/failed summary at the end.
 """
 
 import argparse
@@ -38,6 +45,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import boto3
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from contract import SCHEMA_VERSION, iso_z, new_event_id, parse_iso_utc  # noqa: E402
@@ -101,6 +109,30 @@ def signal(esp, tick, scenario, rng=random):
         "flow_rate": round(max(flow, 0), 2),
         "water_cut": 0.35,
     }
+
+
+def put_with_retry(
+    client, stream_name, event, max_attempts=5, base_delay=0.2, max_delay=5.0
+):
+    """Send one event with bounded exponential backoff and jitter.
+
+    Always retries the same event dict (its event_id is never regenerated),
+    so a retried send is a true redelivery, not a new logical event. Returns
+    True if any attempt succeeded, False if every attempt failed.
+    """
+    data = (json.dumps(event) + "\n").encode()
+    for attempt in range(1, max_attempts + 1):
+        try:
+            client.put_record(
+                StreamName=stream_name, Data=data, PartitionKey=event["esp_id"]
+            )
+            return True
+        except (ClientError, EndpointConnectionError):
+            if attempt == max_attempts:
+                return False
+            delay = min(max_delay, base_delay * (2 ** (attempt - 1)))
+            time.sleep(delay + random.uniform(0, delay * 0.25))
+    return False
 
 
 def build_event(esp, tick, scenario, rng, event_time, run_id, deterministic):
@@ -168,6 +200,8 @@ def main():
     )
 
     k = boto3.client("kinesis")
+    acknowledged, failed = 0, 0
+    failures_path = Path("data/producer-failures.jsonl")
     for tick in range(a.seconds):
         event_time = (
             start + timedelta(seconds=tick)
@@ -178,12 +212,21 @@ def main():
             event = build_event(
                 esp, tick, a.scenario, rng, event_time, run_id, deterministic
             )
-            k.put_record(
-                StreamName=a.stream_name,
-                Data=(json.dumps(event) + "\n").encode(),
-                PartitionKey=esp,
-            )
+            if put_with_retry(k, a.stream_name, event):
+                acknowledged += 1
+            else:
+                failed += 1
+                failures_path.parent.mkdir(parents=True, exist_ok=True)
+                with failures_path.open("a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(event) + "\n")
         time.sleep(a.interval)
+
+    print(f"Producer summary: acknowledged={acknowledged} failed={failed}")
+    if failed:
+        print(
+            f"{failed} send(s) failed after retries and were appended to "
+            f"{failures_path} for manual reconciliation or replay."
+        )
 
 
 if __name__ == "__main__":
