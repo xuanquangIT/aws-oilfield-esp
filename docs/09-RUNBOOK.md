@@ -261,6 +261,43 @@ Always destroy the realtime stack manually afterward if you deployed it outside 
 Invoke-Checked $script:ProjectCdk @('destroy', "$script:ProjectPrefix-realtime", '--exclusively', '--force')
 ```
 
+### 6.7 Verify M3: mixed sources, rerun, backfill isolation, partition pruning
+
+This proves the M3 exit gate in AWS (docs/06-DELIVERY-AND-LEARNING.md): batch and realtime events appear together, input accounting balances, rerunning the same manifest is deterministic, a one-day backfill never touches an unrelated day's data, and Athena SQL demonstrates partition pruning with real scanned bytes.
+
+> **Verified 2026-09-12.** Ran the batch pipeline for 2026-09-12 (`run-batch.ps1`): quality report showed `historical_silver_rows=72`, `realtime_silver_rows=180`, `unexplained_rows=0`, `quality_passed=true`. Replayed the exact same frozen manifest key (`run-batch.ps1 -ManifestKey '<key>'`) in a second, independent Glue run: `canonical_data_sha256` matched byte-for-byte between both runs, proving determinism. Ran a one-day backfill for 2026-09-13 with `-StartDate`/`-EndDate`: the previously published 2026-09-12 Parquet object's S3 ETag and size were unchanged afterward, while the backfill wrote its own new `publication_run_id` partition. Ran the crawler, then queried the `silver` table in Athena with and without an `event_date` predicate: `Statistics.DataScannedInBytes` was 7,351 bytes unfiltered versus 632 bytes filtered (~91% less), directly from `aws athena get-query-execution`. Finally republished a full run spanning both dates so `curated/publication/current.json` reflects the complete window (325 silver rows, 6 gold rows, `quality_passed=true`).
+
+Deploy core if not already deployed (batch does not need the realtime stack), then run and inspect:
+
+```powershell
+. .\scripts\common.ps1
+.\.venv\Scripts\python.exe scripts/seed-batch-data.py
+.\scripts\upload-batch.ps1
+.\scripts\run-batch.ps1 -StartDate '<UTC-day>' -EndDate '<UTC-day>' -LateArrivalLookbackDays 0
+$bucket = Get-CoreOutput 'DataBucketName'
+aws s3 cp "s3://$bucket/curated/publication/current.json" -
+```
+
+**Mixed sources and accounting.** Read the `quality_report` key from `current.json` and confirm `historical_silver_rows > 0`, `realtime_silver_rows > 0`, and `unexplained_rows == 0` (i.e. `accounted_rows == input_rows`). A run with zero rows from either source fails the quality gate by design and never advances the pointer.
+
+**Deterministic rerun.** Note the `manifest_key` printed by the first run, then:
+
+```powershell
+.\scripts\run-batch.ps1 -ManifestKey '<manifest_key_from_first_run>'
+```
+
+Compare `canonical_data_sha256` in the new run's quality report against the first run's; they must be identical since the input manifest is byte-frozen.
+
+**Backfill isolation.** Before backfilling, record the ETag of the currently published silver partition:
+
+```powershell
+aws s3api list-objects-v2 --bucket $bucket --prefix "curated/silver/publication_run_id=<published_run_id>/" --query 'Contents[].{Key:Key,ETag:ETag,Size:Size}' --output json
+```
+
+Run a backfill for a different UTC day that has at least one realtime record (the both-sources gate requires it), then re-list the same prefix and confirm the ETag/size are unchanged and a new `publication_run_id` partition exists for the backfilled day.
+
+**Partition pruning.** After the crawler completes, run the two queries in `sql/01-daily-kpis.sql` (once with the `event_date` predicate, once without) via `aws athena start-query-execution --query-string file://<path>.sql --query-execution-context Database=<GlueDatabaseName> --work-group <AthenaWorkGroup>`, then compare `Statistics.DataScannedInBytes` from `aws athena get-query-execution` for each. Use column-aggregating queries (e.g. `AVG(flow_rate)`), not a bare `COUNT(*)`, since Athena can satisfy row counts from Parquet metadata without a real column scan.
+
 ## 7. Cost and idle-safety audit (run before parking the project)
 
 Use this whenever you stop working and want confirmation that nothing keeps accruing cost or sending notifications.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-09-12 (M3 AWS acceptance)
+
+- Verified all five M3 exit-gate criteria in AWS. Mixed sources: a corrected run's quality report showed `historical_silver_rows=72` and `realtime_silver_rows=180` together with `quality_passed=true`. Accounting: `unexplained_rows=0` (`accounted_rows == input_rows`, 684) on every passing run. Deterministic rerun: replaying the same frozen manifest in a second independent Glue run produced an identical `canonical_data_sha256`. Backfill isolation: a backfill run for an unrelated day (2026-09-13) left the previously published day's Parquet object's S3 ETag and size byte-for-byte unchanged, writing its own new immutable `publication_run_id` partition instead. Partition pruning: an Athena query against the crawled `silver` table scanned 7,351 bytes unfiltered versus 632 bytes filtered by `event_date` (~91% less), per `aws athena get-query-execution`'s `Statistics.DataScannedInBytes`. Republished a final run spanning both dates (325 silver rows, 6 gold rows) as the current approved pointer. Documented in `docs/09-RUNBOOK.md` section 6.7.
+
 ## Unreleased — 2026-09-12 (M3 live fixes)
 
 - Fixed historical CSV projection in Glue: optional realtime-only fields are now added as typed nulls by header name rather than shifting all later CSV fields by position. M3 quality publication also requires accepted silver rows from both `historical_csv` and `realtime_json`; a one-source run cannot advance the approved pointer.
