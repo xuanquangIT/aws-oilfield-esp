@@ -19,7 +19,7 @@ import boto3
 
 ROLE_LOGICAL_PREFIXES = {
     "processor": "StreamProcessorServiceRole",
-    "anomaly": "AnomalyServiceRole",
+    "anomaly": "AnomalyDetectorServiceRole",
     "expiry": "ExpiryReaperServiceRole",
 }
 

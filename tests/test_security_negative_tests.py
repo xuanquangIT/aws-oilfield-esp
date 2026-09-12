@@ -31,3 +31,11 @@ def test_g4_matrix_has_five_distinct_unsafe_actions():
         "iam:PassRole",
     }
     assert "ap-southeast-1" in cases[3]["resource"]
+
+
+def test_g4_role_prefixes_match_the_cdk_function_service_roles():
+    assert module.ROLE_LOGICAL_PREFIXES == {
+        "processor": "StreamProcessorServiceRole",
+        "anomaly": "AnomalyDetectorServiceRole",
+        "expiry": "ExpiryReaperServiceRole",
+    }
