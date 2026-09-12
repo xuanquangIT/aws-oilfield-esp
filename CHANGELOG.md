@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — 2026-09-12 (M3 live fixes)
+
+- Fixed historical CSV projection in Glue: optional realtime-only fields are now added as typed nulls by header name rather than shifting all later CSV fields by position. M3 quality publication also requires accepted silver rows from both `historical_csv` and `realtime_json`; a one-source run cannot advance the approved pointer.
+- Fixed overlapping CDK S3 deployment prefixes: one deployment owns `scripts/`, preserving `scripts/contract.py` for Glue `--extra-py-files` instead of pruning it after upload.
+
 ## Unreleased — 2026-09-12 (M3 local implementation)
 
 - Implemented the M3 analytical path in code: `scripts/create-m3-manifest.py` freezes selected raw S3 objects with byte SHA-256 checksums; `scripts/run-batch.ps1` creates an independent publication run ID and passes the manifest to Glue; `src/batch/transform.py` unions/revalidates historical CSV and archived realtime JSON, joins `pump_metadata_v1.csv`, deduplicates exact event redeliveries, rejects conflicting event IDs, and emits silver, gold and a data-quality report.

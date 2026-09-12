@@ -144,9 +144,20 @@ source_inventory = spark.createDataFrame(
 
 
 def read_csv(uris):
-    return (
-        spark.read.option("header", True).schema(EVENT_SCHEMA).csv(uris)
-        .withColumn("source_uri", F.regexp_replace(F.input_file_name(), "^s3a?://", "s3://"))
+    # Historical CSV intentionally omits optional realtime-only fields. Spark
+    # maps a supplied CSV schema by position, which would shift every column
+    # after the first omitted field. Read the header first and project/cast by
+    # name so omitted optional fields become null instead of corrupting rows.
+    headered = spark.read.option("header", True).csv(uris)
+    projected = []
+    available = set(headered.columns)
+    for field in EVENT_SCHEMA.fields:
+        if field.name in available:
+            projected.append(F.col(field.name).cast(field.dataType).alias(field.name))
+        else:
+            projected.append(F.lit(None).cast(field.dataType).alias(field.name))
+    return headered.select(*projected).withColumn(
+        "source_uri", F.regexp_replace(F.input_file_name(), "^s3a?://", "s3://")
     )
 
 
@@ -284,12 +295,23 @@ duplicate_delivery_dropped_rows = (
     - duplicate_delivery_ids
 )
 missing_metadata_rows = count_rows(missing_metadata)
+source_kind_counts = {
+    row["source_kind"]: row["count"]
+    for row in silver.groupBy("source_kind").count().collect()
+}
+historical_silver_rows = source_kind_counts.get("historical_csv", 0)
+realtime_silver_rows = source_kind_counts.get("realtime_json", 0)
 canonical_data_sha256 = (
     silver.agg(
         F.sha2(F.concat_ws("\n", F.sort_array(F.collect_list("payload_sha256"))), 256).alias("hash")
     ).first()["hash"]
 )
-quality_passed = conflict_rows == 0 and missing_metadata_rows == 0 and silver_rows > 0
+quality_passed = (
+    conflict_rows == 0
+    and missing_metadata_rows == 0
+    and historical_silver_rows > 0
+    and realtime_silver_rows > 0
+)
 report = {
     "run_id": run_id,
     "manifest_id": manifest["manifest_id"],
@@ -309,6 +331,8 @@ report = {
         "duplicate_delivery_ids": duplicate_delivery_ids,
         "duplicate_delivery_dropped_rows": duplicate_delivery_dropped_rows,
         "silver_rows": silver_rows, "missing_metadata_rows": missing_metadata_rows,
+        "historical_silver_rows": historical_silver_rows,
+        "realtime_silver_rows": realtime_silver_rows,
         "gold_rows": count_rows(gold),
     },
     "canonical_data_sha256": canonical_data_sha256,
