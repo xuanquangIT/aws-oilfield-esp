@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import boto3
@@ -38,8 +39,18 @@ def restore(export_dir: Path, bucket: str, region: str, table_map: dict[str, str
     manifest = _load_verified(export_dir)
     s3 = boto3.client("s3", region_name=region)
     dynamodb = boto3.client("dynamodb", region_name=region)
-    for item in manifest["objects"]:
-        s3.put_object(Bucket=bucket, Key=item["key"], Body=(export_dir / "s3" / item["key"]).read_bytes())
+    def restore_object(item: dict) -> None:
+        s3.put_object(
+            Bucket=bucket,
+            Key=item["key"],
+            Body=(export_dir / "s3" / item["key"]).read_bytes(),
+        )
+
+    # Hash verification above is deliberately complete before the first
+    # write. Bounded parallelism only shortens the otherwise thousands of
+    # independent small S3 uploads in a destructive-recovery drill.
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        list(pool.map(restore_object, manifest["objects"]))
     restored_items = 0
     for table in manifest["tables"]:
         source_table = table["name"]
