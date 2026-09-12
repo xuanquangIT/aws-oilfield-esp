@@ -90,7 +90,7 @@ aws cloudformation describe-stacks --stack-name oilfield-esp-core --query 'Stack
 
 Expect: `DataBucketName`, `StateTableName`, `AlertStateTableName`, `AlertTopicArn`, `StateMachineArn`, `GlueCrawlerName`, `GlueJobName`, `GlueDatabaseName`, `AthenaWorkGroup`.
 
-## 5. Batch scenario: deploy, run, verify
+## 5. M3 batch scenario: deploy, run, verify
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/seed-batch-data.py
@@ -100,9 +100,9 @@ Expect: `DataBucketName`, `StateTableName`, `AlertStateTableName`, `AlertTopicAr
 
 - `seed-batch-data.py` generates 504 rows (7 days x 24 hours x 3 pumps) of synthetic, schema-v1 CSV under `data/`.
 - `upload-batch.ps1` uploads it to `raw/batch/historical.csv` in the data bucket.
-- `run-batch.ps1` starts the Step Functions workflow, waits for the Glue Spark job to write partitioned Parquet under `curated/telemetry/`, then runs and waits on the Glue crawler to (re)build the `telemetry` catalog table. This can take 3-6 minutes on a Glue cold start.
+- `run-batch.ps1` builds a content-SHA-256 input manifest, starts the Step Functions workflow with a unique publication run ID, waits for Glue to write `staging/m3/<run-id>/`, and only then starts the crawler for `curated/silver/`. Glue advances `curated/publication/current.json` only if its quality gate passes. This can take 3-6 minutes on a Glue cold start.
 
-Re-running this sequence is safe; each run seeds a fresh random CSV and overwrites `curated/telemetry/` by partition.
+Every M3 run is immutable. To prove a deterministic rerun, retain the printed manifest key and execute `run-batch.ps1 -ManifestKey '<key>'`; it creates a new publication run partition from the identical input. To run a one-day backfill, pass `-StartDate` and `-EndDate` for that UTC day (and the desired `-LateArrivalLookbackDays`). It cannot overwrite an earlier run partition.
 
 For a reproducible fixture (same rows, same `event_id` values every run), pass `--seed`/`--start-time`:
 
@@ -119,11 +119,11 @@ $wg = Get-CoreOutput 'AthenaWorkGroup'
 Invoke-Checked aws @('glue','get-tables','--database-name',$db,'--query','TableList[].Name','--output','table')
 ```
 
-Confirm the `telemetry` table exists, then run [`sql/02-quality-checks.sql`](../sql/02-quality-checks.sql) (expect 504 rows, 3 pumps, all error counts zero) and [`sql/01-daily-kpis.sql`](../sql/01-daily-kpis.sql) in the Athena console, selecting workgroup `$wg` and database `$db`.
+Read `curated/publication/current.json` and copy its `published_run_id`. Confirm the crawler's silver table exists, replace `<published_run_id>` in [`sql/02-quality-checks.sql`](../sql/02-quality-checks.sql) and [`sql/01-daily-kpis.sql`](../sql/01-daily-kpis.sql), then run them in Athena using workgroup `$wg` and database `$db`. Save the quality report and Athena query IDs/bytes scanned.
 
-### 5.2 Verify the schema v1 contract landed in the curated table (M1)
+### 5.2 M3 AWS acceptance checklist
 
-Add `COUNT(DISTINCT event_id) AS distinct_event_ids, COUNT(DISTINCT schema_version) AS schema_versions` to the `SELECT` list in `sql/02-quality-checks.sql` (or run it as a separate query). Expect `distinct_event_ids = 504` (no accidental collisions) and `schema_versions = 1`. This confirms the batch seed generator and the Glue schema in `src/batch/transform.py` agree on the schema-v1 envelope columns (`schema_version`, `event_id`, `source`, `run_id`) added in M1.
+The preceding historical-only sequence tests the path but does not complete M3. For acceptance, retain a bounded realtime scenario first, run a date window covering both sources, and then verify: (1) the manifest has `historical_csv` and `realtime_json`; (2) `quality-report.json` has `unexplained_rows = 0`; (3) a new run from the same manifest has the same `canonical_data_sha256`; (4) a one-day backfill produces a distinct `publication_run_id` without changing earlier partitions; and (5) an `event_date`-filtered Athena query has fewer `DataScannedInBytes` than its unfiltered counterpart. Record these in a private cloud-run receipt before claiming M3 AWS verification.
 
 ## 6. Realtime scenarios: deploy, run, stop
 
@@ -137,7 +137,7 @@ This single command: deploys the disposable `oilfield-esp-realtime` stack (one-s
 
 ### 6.1 Known caveats before you run a scenario with alerts
 
-- **No alert dedupe/cooldown exists yet** (tracked as outstanding work for milestone M2). Every anomalous record triggers one Lambda invocation and one SNS email. A `low_flow` run with all three pumps abnormal for the whole duration can send 100+ emails in a few minutes. Use a short `-DurationMinutes` (1-2) for any scenario other than `normal` until cooldown logic is implemented.
+- **M2 cooldown is active.** A sustained anomaly emits one trigger alert per `(esp_id, rule_id)` episode, then a recovery alert when it clears; it does not promise exactly-once SNS delivery. The 2026-09-07 AWS check produced five SNS publishes for a two-minute `low_flow` run, compared with 159 before M2. Keep demo runs bounded and confirm the SNS subscription when email delivery, rather than publish count, matters.
 - **Actual runtime is longer than `-DurationMinutes`** if your network latency to `us-east-1` is high. The simulator issues 3 synchronous `put_record` calls per tick and only then sleeps 1 second; it does not subtract the API call time from the sleep interval. From regions with ~200-500 ms round-trip latency to `us-east-1`, a "5 minute" run can take 10-13 minutes wall clock. This is expected, not a hang.
 - **Do not run two realtime sessions concurrently.** Either can tear down the other's Kinesis stream.
 

@@ -1,0 +1,4 @@
+esp_id,metadata_version,field,rated_capacity_m3_day,installation_date,min_flow_rate,max_motor_temperature,baseline_liquid_rate_m3_day
+ESP-101,pump-metadata-v1,North Field,150.0,2023-01-15,60.0,120.0,110.0
+ESP-102,pump-metadata-v1,North Field,150.0,2023-02-10,60.0,120.0,110.0
+ESP-103,pump-metadata-v1,South Field,140.0,2023-03-05,55.0,118.0,105.0

@@ -27,11 +27,11 @@ Treat the project as a sequence of small evidence-backed exercises, not one larg
 | 2. Read the baseline code | Read `app.py`, both stacks, the three handlers and the lifecycle scripts | Identify the persistent core, disposable realtime stack, raw S3 history, DynamoDB latest state, SNS alerts and Glue output. |
 | 3. Prepare AWS | Select one sandbox profile and region, then bootstrap | `aws sts get-caller-identity` returns the intended account and region. |
 | 4. Deploy core | Deploy the persistent stack with a budget email | CloudFormation exposes bucket, table, workflow, crawler, database and workgroup outputs. |
-| 5. Run batch baseline | Generate CSV, upload it, run the workflow/crawler and run Athena SQL | 504 source rows become partitioned Parquet and a catalog table. |
+| 5. Run M3 batch | Generate/upload historical CSV, retain a bounded realtime run, then create a manifest and run the workflow/crawler | A checksum-bound mixed-source run writes immutable silver/gold and an approved publication pointer. |
 | 6. Run realtime baseline | Run `normal`, then `low_flow`; observe state, raw objects and an optional SNS email | The one-shard stream and mappings are removed after each bounded demo. |
-| 7. M1 contract | Implement event identity, schema version, validation fixtures and quarantine | Valid, invalid, duplicate and late events have explicit outcomes. |
-| 8. M2 streaming correctness | Implement monotonic latest state, alert dedupe/cooldown and replay | A duplicate or older event cannot regress state or create unexplained side effects. |
-| 9. M3 analytical publication | Unite validated historical and realtime events into silver/gold and publish approved KPIs | Counts reconcile and a rerun/backfill does not damage an earlier good result. |
+| 7. M1 contract | Completed; verify the schema-v1 batch/quarantine smoke evidence | Valid, invalid, duplicate and late events have explicit outcomes. |
+| 8. M2 streaming correctness | Completed; verify conditional state and cooldown evidence | A duplicate or older event cannot regress state or create unexplained side effects. |
+| 9. M3 analytical publication | Implemented locally; run its AWS acceptance scenario | Counts reconcile and a rerun/backfill does not damage an earlier good result. |
 | 10. M4 operations and security | Move completion/expiry into AWS, tighten roles and run recovery drills | The project can stop, recover and rebuild without depending on one laptop session. |
 | 11. M5 consumer dashboard | Build the local read API and dashboard from real DynamoDB and approved KPI data | Two rehearsals pass with measured freshness, stale/error behavior and cost evidence. |
 
@@ -82,7 +82,7 @@ After the first tagged resources appear, open AWS Billing and Cost Management ->
 
 The batch wrapper waits for Step Functions success, then starts and checks the crawler. Query through the project Athena workgroup using [batch instructions](04-OPERATIONS.md).
 
-For the first run, verify the source row count (504), the `curated/telemetry/` Parquet objects and the crawler-created `telemetry` table before running the supplied daily KPI and quality SQL. Explain why raw CSV, Parquet and the Athena result location are different prefixes in the same bucket.
+For a true M3 acceptance run, first retain at least one bounded realtime scenario (it parks Kinesis afterward but leaves its raw JSON), then run the batch command with an inclusive UTC date window. Verify the generated input manifest contains `historical_csv` and `realtime_json`, inspect `staging/m3/<run-id>/quality-report.json`, then read `curated/publication/current.json`. The crawler targets `curated/silver/`; verify its discovered table name before running the supplied SQL with the pointer's `published_run_id`. Explain why raw input, staging, immutable Parquet, the publication pointer and Athena results are separate prefixes in the same bucket.
 
 ## Realtime and parking
 

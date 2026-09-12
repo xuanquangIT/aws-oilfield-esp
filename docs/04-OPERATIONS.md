@@ -62,9 +62,9 @@ Until then, operators inspect native metrics/logs manually. A hard-killed shell 
 
 ## Batch analytics
 
-### Existing runnable path
+### M3 runnable path (implementation; AWS acceptance not yet run)
 
-The seed generator creates seven days × 24 hourly samples × three pumps = **504 rows**. It uses current UTC time and random flow values, so repeated generation does not yield the same checksum.
+The seed generator creates seven days × 24 hourly samples × three pumps = **504 rows**. Pass `--seed` and `--start-time` for a reproducible historical fixture; without them, it uses current UTC time and random flow values.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/seed-batch-data.py
@@ -72,9 +72,11 @@ The seed generator creates seven days × 24 hourly samples × three pumps = **50
 .\scripts\run-batch.ps1
 ```
 
-Current input is raw/batch/historical.csv. Glue casts the fixed CSV schema, parses event timestamps, derives UTC-date intent and oil_rate = flow_rate × (1 - water_cut), and overwrites curated/telemetry partitioned by event_date. The current Spark timezone is not explicitly configured; M3 must set it to UTC.
+`run-batch.ps1` creates a checksum-bound input manifest under `manifests/<manifest-id>/`, starts Glue with a unique publication run ID, then waits for the crawler. The manifest freezes all selected raw batch files and event-date-selected `raw/realtime/` JSON objects; its SHA-256 is carried into silver, gold and the quality report. Use `-ManifestKey` to execute a new run from an existing manifest and compare the canonical data SHA-256.
 
-The wrapper waits for the state machine and then the crawler. A wrapper timeout does not cancel AWS jobs. Inspect remote execution before retrying. Concurrent batch sessions are unsupported.
+Glue runs in UTC, revalidates both inputs through the shared schema-v1 contract, preserves `source_uri`/S3 object time/checksum, joins `pump_metadata_v1.csv`, rejects invalid rows, drops exact redeliveries deterministically and fails closed when one `event_id` has different normalized payloads. It writes per-run staging under `staging/m3/<run-id>/`, then only after its quality gate publishes immutable Parquet partitions under `curated/silver/` and `curated/gold/` and advances `curated/publication/current.json`. A failed run never advances that pointer.
+
+The default date window is the current UTC date plus the preceding six days; `-LateArrivalLookbackDays` widens the reprocessed event-date window (0–30 days). A one-day backfill is a new run with a one-day `-StartDate`/`-EndDate`; it writes a different `publication_run_id` partition and cannot overwrite an earlier run. A wrapper timeout does not cancel AWS jobs. Inspect remote execution before retrying. Concurrent batch sessions are unsupported.
 
 ### Query
 
@@ -87,27 +89,17 @@ $wg = Get-CoreOutput 'AthenaWorkGroup'
 Invoke-Checked aws @('glue','get-tables','--database-name',$db,'--query','TableList[].Name','--output','table')
 ```
 
-In Athena select that workgroup and database. The expected crawler table is telemetry; verify it before using [daily SQL](../sql/01-daily-kpis.sql) or [quality SQL](../sql/02-quality-checks.sql). Replace the table name if necessary. A query failing the 10 MiB workgroup limit is a guardrail event, not a reason to switch to an unrestricted workgroup.
+In Athena select that workgroup and database. The crawler targets `curated/silver/`; verify the discovered table name (normally `silver`) before using [daily SQL](../sql/01-daily-kpis.sql) or [quality SQL](../sql/02-quality-checks.sql). Read `curated/publication/current.json` first and filter Athena by its `published_run_id`; raw staging is not approved data. A query failing the 10 MiB workgroup limit is a guardrail event, not a reason to switch to an unrestricted workgroup.
 
-Expected fresh-input checks: 504 rows, 3 pumps, no null parsed event times, water_cut within 0..1, oil_rate = 0.65 × flow_rate within numerical tolerance. Since generation spans a rolling seven-day interval, it can touch eight UTC calendar dates; do not assert exactly seven date partitions.
+For AWS acceptance, save the quality report and confirm its accounting identity: `input_rows = invalid_rows + out_of_scope_rows + conflict_rows + duplicate_delivery_dropped_rows + silver_rows`, with `unexplained_rows = 0`. Verify historical and realtime source kinds both appear in the manifest, then compare canonical data hashes for a manifest rerun and inspect a one-day backfill without replacing an earlier run partition.
 
 ### Analytical interpretation
 
 Average oil_rate is a rate, not daily oil volume. Production volume requires time-weighted integration and a sampling-gap policy. Current hourly synthetic samples support descriptive comparisons only.
 
-### M3 target
+### M3 acceptance still required on AWS
 
-- Read historical CSV and validated realtime JSON under the same versioned contract.
-- Join a small pump dimension: field, rated capacity, installation date, operating limits and baseline liquid rate.
-- Separate valid and quarantined rows; record input = accepted + rejected + duplicate counts.
-- Keep source URI, event_id, ingestion time, schema version and batch run ID for lineage.
-- Deduplicate by event_id, enforce deterministic conflict handling, set Spark timezone UTC.
-- Write run-scoped silver/gold output, quality check it, then publish a catalog pointer.
-- Reprocess selected affected dates for late data/backfill; never overwrite unrelated successful partitions.
-- Produce daily pump KPIs: sample coverage, average flow/oil rate, warning duration with gap cap, missing-data minutes, relative flow deficit.
-- Compare unpartitioned CSV scans with partition-filtered Parquet using measured Athena bytes scanned.
-
-For this small dataset, begin with explicit catalog tables and partition registration in the workflow. Keep crawler execution as a separate learning exercise. Iceberg MERGE/time travel belongs in an optional M6 lab until update/concurrency requirements justify its maintenance.
+The implementation is covered by pure offline contract tests and CDK synthesis only. Before marking M3 AWS-verified, run a bounded mixed-source scenario and retain a private run receipt with the manifest, quality report, publication pointer, Glue/crawler IDs, Athena result IDs and bytes scanned. The acceptance checks are: both source kinds appear, `unexplained_rows=0`, a fresh run of the same manifest has the same `canonical_data_sha256`, a one-day backfill leaves earlier run partitions unchanged, and an `event_date`-filtered Athena query scans fewer bytes than its unfiltered counterpart. Iceberg MERGE/time travel remains an optional M6 lab.
 
 ## Realtime demonstration
 
@@ -140,13 +132,13 @@ Thresholds use synthetic units described in [domain notes](03-DATA-DOMAIN-AND-CO
 5. Inspect aws/lambda failure payloads if errors occurred.
 6. Verify the stream and mappings are gone after the command ends.
 
-Raw objects and DynamoDB items do not prove every producer event arrived. The current table stores measurement values as strings and overwrites unconditionally. Repeated delivery may republish alerts. Both are explicit M1/M2 work.
+Raw objects and DynamoDB items do not prove every producer event arrived. M2 stores latest-state measurements as DynamoDB Numbers, accepts only a strictly newer timestamp (equal timestamps are first-writer-wins), and applies per-pump/rule alert cooldown/recovery. M4 still needs a cloud-owned drain gate to reconcile acknowledged producer IDs to archived consumer outcomes after a real stream run.
 
 ### Recovery and next tests
 
 If the producer errors or the shell is interrupted, run realtime-stop.ps1. If cleanup fails, inspect CloudFormation events and retry using the original prefix/profile/region. Treat an access-denied response as unknown state, not proof of deletion.
 
-M2 introduces fixture tests for malformed input, duplicate events, out-of-order events, throttling and replay. The integrated gate requires accepted events to reconcile against producer IDs, explicit duplicate/invalid counts and no unexplained loss after a successful drain.
+M2 fixture tests cover malformed input, duplicate events, out-of-order events, throttling and replay. M3 adds manifest-based input accounting and canonical dedupe; M4 owns the full producer-to-consumer drain reconciliation and laptop-loss recovery drill.
 
 ## Operating time estimates
 

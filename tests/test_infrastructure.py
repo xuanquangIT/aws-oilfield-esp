@@ -87,3 +87,20 @@ def test_core_resources_inherit_project_cost_allocation_tag(tmp_path):
     core, _ = stacks(tmp_path)
     glue_job = next(iter(core.find_resources("AWS::Glue::Job").values()))["Properties"]
     assert glue_job["Tags"]["Project"] == "test-esp"
+
+
+def test_m3_glue_receives_manifest_arguments_and_crawls_silver(tmp_path):
+    core, _ = stacks(tmp_path)
+    glue_job = next(iter(core.find_resources("AWS::Glue::Job").values()))["Properties"]
+    assert "--DATA_BUCKET" in glue_job["DefaultArguments"]
+    assert "/scripts/m3-lib/contract.py" in json.dumps(
+        glue_job["DefaultArguments"]["--extra-py-files"]
+    )
+    crawler = next(iter(core.find_resources("AWS::Glue::Crawler").values()))["Properties"]
+    assert "/curated/silver/" in json.dumps(crawler["Targets"]["S3Targets"][0]["Path"])
+    state_machine = next(iter(core.find_resources("AWS::StepFunctions::StateMachine").values()))[
+        "Properties"
+    ]
+    definition = json.dumps(state_machine["DefinitionString"])
+    assert "--RUN_ID.$" in definition
+    assert "--INPUT_MANIFEST_KEY.$" in definition

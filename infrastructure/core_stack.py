@@ -199,6 +199,26 @@ class CoreStack(Stack):
             destination_bucket=bucket,
             destination_key_prefix="scripts",
         )
+        # Glue receives the contract as an extra Python file so M3 validates
+        # historical CSV and archived realtime JSON with the same v1 rules as
+        # the producer and stream processor.
+        s3deploy.BucketDeployment(
+            self,
+            "GlueContract",
+            sources=[
+                s3deploy.Source.asset(
+                    "src",
+                    exclude=[
+                        "anomaly_detector",
+                        "stream_processor",
+                        "batch",
+                        "**/__pycache__",
+                    ],
+                )
+            ],
+            destination_bucket=bucket,
+            destination_key_prefix="scripts/m3-lib",
+        )
 
         database = glue.CfnDatabase(
             self,
@@ -228,6 +248,7 @@ class CoreStack(Stack):
             default_arguments={
                 "--job-language": "python",
                 "--DATA_BUCKET": bucket.bucket_name,
+                "--extra-py-files": f"s3://{bucket.bucket_name}/scripts/m3-lib/contract.py",
             },
         )
 
@@ -238,7 +259,7 @@ class CoreStack(Stack):
             role=role.role_arn,
             database_name=database.ref,
             targets={
-                "s3Targets": [{"path": f"s3://{bucket.bucket_name}/curated/telemetry/"}]
+                "s3Targets": [{"path": f"s3://{bucket.bucket_name}/curated/silver/"}]
             },
             schema_change_policy={
                 "updateBehavior": "UPDATE_IN_DATABASE",
@@ -264,6 +285,14 @@ class CoreStack(Stack):
             self,
             "RunGlue",
             glue_job_name=job.ref,
+            arguments=sfn.TaskInput.from_object(
+                {
+                    "--RUN_ID": sfn.JsonPath.string_at("$.run_id"),
+                    "--INPUT_MANIFEST_KEY": sfn.JsonPath.string_at(
+                        "$.input_manifest_key"
+                    ),
+                }
+            ),
             integration_pattern=sfn.IntegrationPattern.RUN_JOB,
         )
         state_machine = sfn.StateMachine(

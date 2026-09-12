@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-09-12 (M3 local implementation)
+
+- Implemented the M3 analytical path in code: `scripts/create-m3-manifest.py` freezes selected raw S3 objects with byte SHA-256 checksums; `scripts/run-batch.ps1` creates an independent publication run ID and passes the manifest to Glue; `src/batch/transform.py` unions/revalidates historical CSV and archived realtime JSON, joins `pump_metadata_v1.csv`, deduplicates exact event redeliveries, rejects conflicting event IDs, and emits silver, gold and a data-quality report.
+- M3 writes immutable staging data under `staging/m3/<run-id>/`, then final run partitions under `curated/silver/` and `curated/gold/`; only a passing quality gate updates `curated/publication/current.json`. A failed run leaves the previous pointer unchanged. The source window is parameterized by start/end UTC date and late-arrival lookback.
+- Added pure offline tests for manifest determinism, duplicate redelivery, conflicting event IDs and invalid-record accounting. Updated CDK to package the shared validator for Glue, pass run/manifest values through Step Functions and crawl the M3 silver prefix.
+- Updated the M1/M2/M3 runbooks, operations guide, ADR and SQL templates so they no longer describe M2 as planned or M3 as a CSV overwrite. M3 AWS acceptance has **not** yet run: mixed-source reconciliation, same-manifest rerun, isolated backfill and Athena partition-pruning bytes remain required evidence.
+
 ## Unreleased — 2026-09-07 (M2)
 
 - Implemented M2 (reliable streaming) per `docs/06-DELIVERY-AND-LEARNING.md`:

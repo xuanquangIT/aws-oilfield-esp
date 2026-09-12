@@ -57,6 +57,9 @@ function Test-Batch {
     function Get-CoreOutput { param([string]$Key) return 'fixture-output' }
     function Invoke-Checked {
         param([string]$Command, [string[]]$Arguments)
+        if ($Command -eq 'fake-python') {
+            return '{"manifest_key":"manifests/fixture/input-manifest.json"}'
+        }
         switch ($Arguments[1]) {
             'start-execution' { return 'fixture-execution' }
             'describe-execution' { return $WorkflowStatus }

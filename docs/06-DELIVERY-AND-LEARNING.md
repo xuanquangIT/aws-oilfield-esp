@@ -8,7 +8,7 @@ This document is the implementation backlog, release gate and exam-learning map.
 
 One coherent Phase 1 product: historical CSV and realtime ESP ingestion -> validation/raw/quarantine -> trustworthy operational state plus reconciled silver/gold KPIs -> approved publication and Athena query -> local realtime web dashboard -> reproducible customer evidence. Minimize idle cost and operator effort before adding more services.
 
-The current revision delivers documentation/workspace organization and foundation fixes. The milestones below are the implementation backlog, not a claim that the finished platform already exists. Estimates are planning ranges for one developer, excluding environment access delays.
+The current revision includes M0–M2 and a local M3 implementation. The milestones below remain the delivery backlog and are not a claim that the finished platform or M3 AWS evidence exists. Estimates are planning ranges for one developer, excluding environment access delays.
 
 ### Milestones
 
@@ -17,7 +17,7 @@ The current revision delivers documentation/workspace organization and foundatio
 | M0 Foundation | Current revision | Offline tests + synth, actual stack wiring, checked lifecycle scripts, cost/source review, honest status ledger |
 | M1 Contract and fixtures | M0 / 1-2 days | Versioned schema, deterministic seed/run IDs, shared validation, typed units, pump metadata; fixtures for valid, null, malformed, duplicate, late and incompatible versions |
 | M2 Reliable streaming | M1 / 2-3 days | Stable event IDs, conditional latest state, failure/quarantine separation, alert cooldown/history, bounded producer retry, replay command; behavioral tests show no backward state or duplicate side effects |
-| M3 Integrated batch | M1 + M2 raw contract / 3-4 days | CSV/JSON union, pump join, DQ + dedupe, run-scoped output, stable catalog, date backfill, gold KPI SQL; counts and rerun results reconcile |
+| M3 Integrated batch | M1 + M2 raw contract / implemented locally; AWS acceptance pending | CSV/JSON union, pump join, DQ + dedupe, immutable run-scoped output, publication pointer, date backfill and gold KPI implementation; live counts/rerun/scan evidence remains required |
 | M4 Operations/security | M2 + M3 / 2-3 days | Cloud batch completion, scoped retry/catch, publish gate, expiry lease, drain/lock, least privilege, alarms, restore/deny drills and residual cost inventory |
 | M5 Dashboard and customer release | UI scaffold alongside M1-M4; final integration after M4 / 2-3 days | Localhost web dashboard + local read API, latest-state and KPI views, redacted evidence, two clean rehearsals, recreate test, measured freshness/incremental usage, customer recording |
 | M6 Exam extensions | Alongside, isolated / 3-5 days | DEA task exercises for CDC/warehouse/windows/governance/Iceberg and study-only modern data/AI topics |
@@ -45,6 +45,8 @@ Exit: duplicate, late and invalid fixtures have expected counts; state is monoto
 Use the same schema for historical and realtime records. Join small versioned pump metadata. Write staging output per run; derive row counts and data-quality report before publishing an approved catalog location. A failed run must leave the prior published dataset queryable.
 
 Choose immutable run output for this single-writer capstone. Do not use append without dedupe or wholesale overwrite for incremental workloads. Record input manifest/checksums, schema/rules version and output path. Parameterize date range and late-arrival lookback.
+
+**Implemented locally.** `scripts/create-m3-manifest.py` freezes raw S3 object URIs, byte SHA-256 values and selected date range; `run-batch.ps1` gives every publication attempt its own run ID; the Glue job revalidates CSV/JSON through the shared contract, joins `pump_metadata_v1.csv`, quarantines invalid/conflicting rows, writes immutable staging and final Parquet partitions, then advances `curated/publication/current.json` only after accounting/metadata gates pass. Exact redeliveries deduplicate by `event_id`; a differing normalized payload sharing an ID fails closed. The crawler remains a separate catalog-discovery exercise. This is code/offline evidence, not an AWS M3 completion claim.
 
 Exit: batch and realtime events appear together; input accounting balances; rerunning the same manifest yields the same canonical results; one-day backfill does not change unrelated days; SQL demonstrates partition pruning with actual bytes scanned.
 
@@ -121,7 +123,7 @@ Start from [cloud run template](../evidence/templates/cloud-run.json). Save unde
 
 Only publish a redacted copy. Do not fabricate a run ID, cost, screenshot or service success to complete the template.
 
-Current evidence: [local validation](../evidence/LOCAL-VALIDATION.md). Cloud acceptance remains not_run until actual AWS operations are completed.
+Current evidence: [local validation](../evidence/LOCAL-VALIDATION.md), plus documented AWS smoke evidence for M1 and M2 in [the runbook](09-RUNBOOK.md). M3 and later cloud acceptance remain not run until their stated AWS operations are completed.
 
 ## AWS DEA-C01 coverage
 
@@ -132,17 +134,17 @@ Official English guide reviewed 2026-09-05: domains carry **34%, 26%, 22%, 18%**
 | Task | Current basis | Required project evidence / next exercise |
 |---|---|---|
 | 1.1 Ingestion | Code: CSV, Kinesis, two consumers | M2 duplicate/late/invalid/replay drill; Lab compare DMS CDC, API pagination and Firehose |
-| 1.2 Transformation | Code: Spark CSV -> Parquet and derived oil rate | M3 union/join, normalization, rejects, performance comparison; Study LLM enrichment boundaries |
+| 1.2 Transformation | Code: M3 Spark CSV/JSON union, contract validation, metadata join and silver/gold publication | M3 AWS reconciliation/rerun/backfill/scan evidence; Study LLM enrichment boundaries |
 | 1.3 Orchestration | Code: Glue task, client-side crawler | M4 cloud-owned publish workflow, retry/catch and controlled failure |
 | 1.4 Programming | Code: Python, CDK, PowerShell, offline CI | Tests and locked dependencies; explain partition parallelism and deployment change review |
 | 2.1 Store selection | Code: S3 history, DynamoDB latest state | ADR access-pattern comparison; Lab Iceberg; Study Redshift/RDS, vectors HNSW/IVF |
-| 2.2 Catalogs | Code: crawler and Glue database | M3 stable schema/partitions; Study business catalog ownership and SageMaker Catalog |
+| 2.2 Catalogs | Code: crawler and Glue database targeting M3 silver | M3 AWS stable-table/partition evidence; Study business catalog ownership and SageMaker Catalog |
 | 2.3 Lifecycle | Code: S3 expiry, explicit reset | M4 export/restore and residual inventory; Lab TTL/versioning and deletion policy |
-| 2.4 Modeling/evolution | Code: flat telemetry/date partitions | M1 v1/v2 contract fixture; M3 pump dimension and lineage; Study vectorization |
+| 2.4 Modeling/evolution | Code: telemetry v1, pump metadata v1 and M3 lineage fields | M3 AWS lineage/backfill evidence; Study vectorization |
 | 3.1 Automation | Code: SDK producer and lifecycle wrappers | M4 automated completion with laptop disconnected; Lab API/backoff |
 | 3.2 Analysis | Code: Athena SQL templates | M5 KPI report; measured scan savings and missing-data interpretation |
 | 3.3 Monitoring/support | Code: retained app logs; failure payloads | M4 alarm/recovery evidence, correlation IDs and CloudTrail review |
-| 3.4 Quality | Plan: quality contract and SQL checks | M1/M3 rejected rows, freshness, reconciliation, skew and rerun tests |
+| 3.4 Quality | Code: M3 quality report and SQL templates | M3 AWS rejected rows, freshness, reconciliation, skew and rerun evidence |
 | 4.1 Authentication | Code: workload roles; profile instructions | M4 temporary credentials / denied expired session; Study VPC endpoints and rotation |
 | 4.2 Authorization | Code: scoped resources; broad Glue managed baseline | M4 publisher/analyst negative tests; Lab Lake Formation row/column access |
 | 4.3 Encryption/masking | Code: S3 encryption and TLS | M4 denied insecure request; Lab KMS key-policy failure and synthetic masking |
@@ -171,7 +173,7 @@ Use each lab to build, break, recover, explain and clean. A design/tabletop lab 
 | L2 Batch baseline | Generate/upload 504 rows; run job/crawler; execute SQL | Omit upload in a sandbox, inspect failure, then upload/rerun; save execution + counts | AWS; runnable now, paid |
 | L3 Realtime baseline | Run low_flow five minutes; observe state/SNS/raw and cleanup | Use unconfirmed SNS email to distinguish publish from delivery; confirm and retest | AWS; runnable now, paid |
 | L4 Reliable events | Implement M1/M2 then feed duplicate/older/invalid events | Predict counts first; verify latest state and replay after a transient failure | Implementation lab |
-| L5 Analytical integrity | Implement M3; backfill one date and rerun manifest | Inject bad water_cut; preserve prior publication; compare result hashes | Implementation lab |
+| L5 Analytical integrity | Run M3 in AWS; backfill one date and rerun manifest | Inject bad water_cut; preserve prior publication; compare result hashes | AWS acceptance lab |
 | L6 Data-store choice | Model pump-day fact and pump dimension; compare S3, DynamoDB, Redshift | Explain distribution/sort keys, COPY, Spectrum, skew and query concurrency; optional bounded Redshift test | Study first; AWS optional |
 | L7 CDC | Create insert/update/delete sequence with source offsets in a local fixture | Replay duplicate update and delayed delete; explain DMS full-load + CDC and ordering | Local model; no DMS claim |
 | L8 Stateful streaming | Define five-minute windows, late tolerance and watermark examples | Classify late arrival and checkpoint restart; optionally run a local Flink fixture | Study/local; no managed Flink claim |

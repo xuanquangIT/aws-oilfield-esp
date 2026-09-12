@@ -96,7 +96,7 @@ Do not run a non-normal scenario unattended. Before any long-running test, imple
 ### Highest-value cost changes
 
 1. Change the ingest Lambda from one S3 object per event to one JSON Lines object per Lambda batch. At the modeled six events per batch, continuous S3 PUT cost falls from **$38.88 to $6.48/month**, and the total falls from **$67.90 to $35.50**.
-2. Add anomaly cooldown and state-change deduplication before allowing any unattended scenario. This removes the $159/month modeled alert-storm exposure.
+2. M2 anomaly cooldown and state-change deduplication are implemented; keep unattended scenarios blocked until M4 adds cloud-owned expiry and drain controls. Cooldown removes the $159/month modeled alert-storm exposure, but not all runtime/cost risk.
 3. Run the crawler only for schema-learning exercises or schema changes. Prefer explicit stable catalog tables and partition registration for routine publication; skipping 30 crawler runs saves up to **$4.40/month** in this model.
 4. Start Glue only when new batch input exists. The current batch file is small, so repeating an unchanged job adds cost without producing new evidence.
 5. Keep the dashboard local by default and cache reads. Do not query Athena on browser polling.
