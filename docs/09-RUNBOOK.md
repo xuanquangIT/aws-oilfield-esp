@@ -300,7 +300,9 @@ Run a backfill for a different UTC day that has at least one realtime record (th
 
 ### 6.8 Verify M4: cloud-owned completion, expiry, drain, denial and recovery
 
-M4 is **not AWS-verified yet**. The following is the acceptance procedure after reviewing the M4 CDK diff and deploying core. It creates a short-lived realtime stack and may send the configured SNS alert; use only synthetic data.
+> **Partially verified in AWS on 2026-09-12.** G4 ran against the deployed workload roles: all five prohibited actions returned `implicitDeny`. A normal one-minute realtime run wrote a drain receipt for run `d78ffb2c-5959-4f86-b359-b9ae3ef3ff7f`: 180 acknowledged, 180 raw, 0 quarantine, 0 missing. A separate no-producer realtime stack was protected only by its one-shot Scheduler; at `2026-09-12T08:38:13Z` the reaper invoked and logged `outcome: deleted` at `08:38:47Z`, and both the stack and schedule subsequently returned not-found. The residual inventory then found only `oilfield-esp-core`, no Kinesis streams/schedules, and 2,029 retained S3 objects / 1,928,217 bytes. This is not yet an export/reset/restore drill, so M4 remains partially accepted.
+
+The following acceptance procedure after reviewing the M4 CDK diff and deploying core creates a short-lived realtime stack and may send the configured SNS alert; use only synthetic data.
 
 1. Run a normal one-minute scenario and retain `data/drain-receipts/<run-id>.json`; it must be `complete: true`. Confirm the wrapper deleted the realtime stack and its scheduler entry.
 2. Start another short scenario, close the local shell after the stream deploys, then wait past `DurationMinutes + ExpiryGraceMinutes`. Verify the Scheduler invoked `ExpiryReaper`, the realtime stack reaches `DELETE_COMPLETE`/not-found and `aws kinesis list-streams` has no project stream. Label its producer run potentially incomplete because expiry intentionally cannot run the local drain gate.

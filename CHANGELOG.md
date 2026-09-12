@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-09-12 (M4 AWS partial acceptance)
+
+- Deployed M4 core controls and verified the five G4 workload-role denial cases with `iam:SimulatePrincipalPolicy`; every prohibited action returned `implicitDeny`.
+- Ran a normal one-minute realtime scenario: the M4 drain receipt reconciled 180 acknowledged producer events to 180 raw S3 objects, with no quarantine or missing events. The realtime stack was then removed and Kinesis was empty.
+- Proved client-independent expiry with a separate no-producer realtime stack: a one-shot Scheduler target invoked `ExpiryReaper` at `2026-09-12T08:38:13Z`; its CloudWatch log recorded `outcome: deleted` at `08:38:47Z`, and the stack/schedule were absent afterward. Final scoped inventory found core only, no Kinesis/schedules, and 1,928,217 retained S3 bytes. Export/reset/recreate/restore remains a deliberately unrun destructive acceptance drill.
+
 ## Unreleased — 2026-09-12 (M4 local implementation; AWS acceptance pending)
 
 - Moved batch completion into Step Functions: Glue, crawler start, fresh-crawl polling and terminal outcome are cloud-owned; the PowerShell command only launches/observes. Retry is limited to transient Glue/time-out failures and overlapping publish runs fail explicitly.
