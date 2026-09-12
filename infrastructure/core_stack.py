@@ -195,29 +195,17 @@ class CoreStack(Stack):
         s3deploy.BucketDeployment(
             self,
             "GlueScript",
-            sources=[s3deploy.Source.asset("src/batch")],
-            destination_bucket=bucket,
-            destination_key_prefix="scripts",
-        )
-        # Glue receives the contract as an extra Python file so M3 validates
-        # historical CSV and archived realtime JSON with the same v1 rules as
-        # the producer and stream processor.
-        s3deploy.BucketDeployment(
-            self,
-            "GlueContract",
+            # One deployment owns the whole scripts/ prefix. Separate
+            # deployments at scripts/ and scripts/m3-lib/ caused the broader
+            # deployment to prune contract.py after it was uploaded.
             sources=[
                 s3deploy.Source.asset(
                     "src",
-                    exclude=[
-                        "anomaly_detector",
-                        "stream_processor",
-                        "batch",
-                        "**/__pycache__",
-                    ],
+                    exclude=["anomaly_detector", "stream_processor", "**/__pycache__"],
                 )
             ],
             destination_bucket=bucket,
-            destination_key_prefix="scripts/m3-lib",
+            destination_key_prefix="scripts",
         )
 
         database = glue.CfnDatabase(
@@ -243,12 +231,12 @@ class CoreStack(Stack):
             command=glue.CfnJob.JobCommandProperty(
                 name="glueetl",
                 python_version="3",
-                script_location=f"s3://{bucket.bucket_name}/scripts/transform.py",
+                script_location=f"s3://{bucket.bucket_name}/scripts/batch/transform.py",
             ),
             default_arguments={
                 "--job-language": "python",
                 "--DATA_BUCKET": bucket.bucket_name,
-                "--extra-py-files": f"s3://{bucket.bucket_name}/scripts/m3-lib/contract.py",
+                "--extra-py-files": f"s3://{bucket.bucket_name}/scripts/contract.py",
             },
         )
 

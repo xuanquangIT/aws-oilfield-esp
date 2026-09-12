@@ -223,7 +223,7 @@ silver_unjoined = (
 
 metadata = (
     spark.read.option("header", True).option("inferSchema", True)
-    .csv(s3_uri("scripts/pump_metadata_v1.csv"))
+    .csv(s3_uri("scripts/batch/pump_metadata_v1.csv"))
 )
 silver = silver_unjoined.join(F.broadcast(metadata), "esp_id", "left")
 missing_metadata = silver.filter(F.col("metadata_version").isNull())

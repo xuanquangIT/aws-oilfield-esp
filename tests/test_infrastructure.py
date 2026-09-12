@@ -93,7 +93,7 @@ def test_m3_glue_receives_manifest_arguments_and_crawls_silver(tmp_path):
     core, _ = stacks(tmp_path)
     glue_job = next(iter(core.find_resources("AWS::Glue::Job").values()))["Properties"]
     assert "--DATA_BUCKET" in glue_job["DefaultArguments"]
-    assert "/scripts/m3-lib/contract.py" in json.dumps(
+    assert "/scripts/contract.py" in json.dumps(
         glue_job["DefaultArguments"]["--extra-py-files"]
     )
     crawler = next(iter(core.find_resources("AWS::Glue::Crawler").values()))["Properties"]
