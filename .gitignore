@@ -11,4 +11,6 @@ node_modules/
 cdk.context.json
 evidence/runs/
 data/exports/
+data/producer-runs/
+data/drain-receipts/
 .vscode/

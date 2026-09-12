@@ -46,7 +46,23 @@ Stopping a Step Functions execution is not evidence that every downstream resour
 
 ### Reset and restore
 
-Copy required S3 content to a controlled local export before destructive reset; separately export DynamoDB data if latest state must be kept. Current latest state can also be rebuilt only after replay tooling exists. Save SQL results and redact account IDs in shareable evidence.
+Create a checksum-bound export before destructive reset. It exports every current object in the selected project bucket and raw DynamoDB AttributeValue maps for both state tables; it makes no AWS writes. Keep the export outside version control and protect it like the data it contains.
+
+```powershell
+. .\scripts\common.ps1
+$bucket = Get-CoreOutput 'DataBucketName'
+$state = Get-CoreOutput 'StateTableName'
+$alerts = Get-CoreOutput 'AlertStateTableName'
+.\.venv\Scripts\python.exe scripts\export-core-data.py --bucket $bucket --table $state --table $alerts --destination data/exports/<utc-run-id>
+```
+
+After recreating the core stack, restore only a verified export to the newly-created bucket. Physical DynamoDB names change after reset, so map each name recorded in `manifest.json` to its newly-created target table. This writes objects and `PutItem`s, so it requires an explicit confirmation and may overwrite matching keys/items:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\restore-core-data.py --export-dir data/exports/<utc-run-id> --bucket <new-bucket> --table-map '<exported-state>=<new-state>' --table-map '<exported-alert-state>=<new-alert-state>' --confirm-restore
+```
+
+Current latest state can also be rebuilt only after replay tooling exists. Save SQL results and redact account IDs in shareable evidence.
 
 Run destroy-all.ps1 -DeleteData. The bucket uses auto-delete and the table uses DESTROY; bypassing this wrapper with direct CDK destroy can also erase data.
 
@@ -54,11 +70,13 @@ Afterward inspect shared CDKToolkit assets/ECR and Glue/provider-created log gro
 
 Rebuild with the same configuration and lockfiles, then seed/upload the synthetic dataset. Generated physical names may change. Restore real exported data explicitly if needed; IaC restores resources, not deleted content.
 
-### Planned reliability controls
+### M4 reliability controls (local implementation; live proof pending)
 
-M4 adds a cloud expiry lease, deployment lock, observed stream drain and cloud-owned batch completion. Alarm requirements: Lambda Errors/Throttles/IteratorAge, failure-destination delivery failures, Glue failures, workflow timeouts and quarantine spikes. Keep paid alarms and dashboards scoped and costed.
+`run-batch.ps1` is now only a Step Functions launcher/observer: the state machine itself runs Glue, starts the crawler, and polls until it is `READY` after a fresh crawl. It has bounded transient-only retry and an explicit overlapping-publish failure.
 
-Until then, operators inspect native metrics/logs manually. A hard-killed shell can leave a billed stream running.
+`realtime-start.ps1` creates an EventBridge Scheduler one-shot expiry before the stream is deployed. The expiry reaper can only inspect/delete the exact realtime CloudFormation stack; it cannot delete the core stack or subordinate resources directly. The normal path waits briefly, runs the ledger-based drain gate, then deletes both the realtime stack and the schedule. A failed drain check is deliberately a loud incomplete receipt, not a teardown blocker; expiry also favors stopping spend over preserving unprocessed events.
+
+The implementation has offline tests and synthesis evidence only. Before claiming M4 complete, run the live acceptance procedure in runbook section 6.8, including a disconnected-client expiry, IAM denial simulation and export/restore on synthetic data. Alarm requirements remain Lambda Errors/Throttles/IteratorAge, failure-destination delivery failures, Glue failures, workflow timeouts and quarantine spikes; scope and cost any paid alarms first.
 
 ## Batch analytics
 
@@ -72,7 +90,7 @@ The seed generator creates seven days × 24 hourly samples × three pumps = **50
 .\scripts\run-batch.ps1
 ```
 
-`run-batch.ps1` creates a checksum-bound input manifest under `manifests/<manifest-id>/`, starts Glue with a unique publication run ID, then waits for the crawler. The manifest freezes all selected raw batch files and event-date-selected `raw/realtime/` JSON objects; its SHA-256 is carried into silver, gold and the quality report. Use `-ManifestKey` to execute a new run from an existing manifest and compare the canonical data SHA-256.
+`run-batch.ps1` creates a checksum-bound input manifest under `manifests/<manifest-id>/`, starts one Step Functions execution with a unique publication run ID, then observes that execution. The state machine waits for Glue, starts the crawler, and polls for `READY` after a new crawl; the client can disconnect once execution has started. The manifest freezes all selected raw batch files and event-date-selected `raw/realtime/` JSON objects; its SHA-256 is carried into silver, gold and the quality report. Use `-ManifestKey` to execute a new run from an existing manifest and compare the canonical data SHA-256.
 
 Glue runs in UTC, revalidates both inputs through the shared schema-v1 contract, preserves `source_uri`/S3 object time/checksum, joins `pump_metadata_v1.csv`, rejects invalid rows, drops exact redeliveries deterministically and fails closed when one `event_id` has different normalized payloads. It writes per-run staging under `staging/m3/<run-id>/`, then only after its quality gate publishes immutable Parquet partitions under `curated/silver/` and `curated/gold/` and advances `curated/publication/current.json`. A failed run never advances that pointer.
 

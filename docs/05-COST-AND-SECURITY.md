@@ -130,7 +130,7 @@ The calculator is intentionally deterministic and conservative. Update its price
 
 S3 blocks public access, uses SSE-S3 and enforces TLS. Workload code uses IAM roles and SDK credentials; no keys are embedded. Realtime read/failure-destination policies are attached from realtime and removed with it. Data remains in the selected region. The Glue role still uses the AWSGlueServiceRole managed policy and bucket-wide read/write access; this is a baseline to narrow, not a least-privilege completion claim.
 
-### Target access matrix: M4
+### M4 access matrix and current boundary
 
 | Principal | Allowed | Must be denied |
 |---|---|---|
@@ -143,14 +143,22 @@ S3 blocks public access, uses SSE-S3 and enforces TLS. Workload code uses IAM ro
 | Optional hosted Dashboard Lambda | Read allow-listed latest state and one approved KPI JSON location | Raw/failure data, Kinesis, SNS publish, infrastructure writes |
 | Optional hosted customer | Read authenticated dashboard API | Direct S3/DynamoDB access or another customer's view |
 | Analyst | Query approved catalog/workgroup and read approved data/results | Write raw, read quarantine, delete data |
-| Expiry worker | Delete/inspect exact realtime stack and required owned resources | Delete core or unrelated deployments |
+| Expiry worker | Describe/delete the exact realtime CloudFormation stack | Delete core/unrelated deployments, or directly delete Kinesis/IAM/Lambda resources |
 | Deployer | Manage this sandbox's project with reviewed changes | General production account access |
 
 Use IAM Identity Center/temporary credentials for operators. Future CI deployment should use constrained OIDC roles and protected environments. The included CI only performs offline checks and has no AWS credentials.
 
 ### Negative evidence
 
-Test access with the actual intended principal: producer reading S3 denied; analyst writing raw denied; wrong bucket denied; insecure S3 request denied; expiry worker deleting core denied. Save redacted policy/version and error evidence. Template assertions alone cannot establish effective authorization.
+After an M4 core deploy, run the read-only IAM simulation harness against the deployed workload roles and retain its receipt:
+
+```powershell
+. .\scripts\common.ps1
+$bucket = Get-CoreOutput 'DataBucketName'
+.\.venv\Scripts\python.exe scripts\security-negative-tests.py --bucket $bucket --receipt evidence/runs/g4-deny.json
+```
+
+It fails if any of these five actions evaluates as `allowed`: processor reads curated data, processor deletes raw evidence, anomaly worker writes raw telemetry, expiry worker deletes core, or expiry worker passes an unrelated role. This is a real-policy simulator result, but not a resource-policy/network-path proof. The current local producer uses the deployer profile and there is no separately deployed analyst role, so producer/analyst human-role denial remains a future identity-design and live-test requirement. Save redacted policy/version and error evidence; template assertions alone cannot establish effective authorization.
 
 Optional governance lab: Lake Formation row/column access; KMS key-policy denial and recovery; synthetic PII masking. Cost and tear down these separately. Do not enable broad Macie scans, Config recorders or paid CloudTrail data events on the entire account just for this demo.
 

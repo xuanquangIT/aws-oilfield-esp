@@ -298,6 +298,24 @@ Run a backfill for a different UTC day that has at least one realtime record (th
 
 **Partition pruning.** After the crawler completes, run the two queries in `sql/01-daily-kpis.sql` (once with the `event_date` predicate, once without) via `aws athena start-query-execution --query-string file://<path>.sql --query-execution-context Database=<GlueDatabaseName> --work-group <AthenaWorkGroup>`, then compare `Statistics.DataScannedInBytes` from `aws athena get-query-execution` for each. Use column-aggregating queries (e.g. `AVG(flow_rate)`), not a bare `COUNT(*)`, since Athena can satisfy row counts from Parquet metadata without a real column scan.
 
+### 6.8 Verify M4: cloud-owned completion, expiry, drain, denial and recovery
+
+M4 is **not AWS-verified yet**. The following is the acceptance procedure after reviewing the M4 CDK diff and deploying core. It creates a short-lived realtime stack and may send the configured SNS alert; use only synthetic data.
+
+1. Run a normal one-minute scenario and retain `data/drain-receipts/<run-id>.json`; it must be `complete: true`. Confirm the wrapper deleted the realtime stack and its scheduler entry.
+2. Start another short scenario, close the local shell after the stream deploys, then wait past `DurationMinutes + ExpiryGraceMinutes`. Verify the Scheduler invoked `ExpiryReaper`, the realtime stack reaches `DELETE_COMPLETE`/not-found and `aws kinesis list-streams` has no project stream. Label its producer run potentially incomplete because expiry intentionally cannot run the local drain gate.
+3. Run the G4 simulator from the security guide. All five results must be `implicitDeny` or `explicitDeny`, never `allowed`.
+4. Export a small synthetic core dataset, reset/recreate the core, restore the export with `--confirm-restore`, and compare object/table counts and manifest hashes. Do not call it a restore drill until this is run twice.
+5. Record a scoped residual inventory, then check Cost Explorer after its normal billing delay:
+
+```powershell
+. .\scripts\common.ps1
+$bucket = Get-CoreOutput 'DataBucketName'
+.\.venv\Scripts\python.exe scripts\residual-inventory.py --bucket $bucket
+```
+
+The inventory is read-only and scoped by project prefix; it is not an account-wide zero-cost claim or a billing statement.
+
 ## 7. Cost and idle-safety audit (run before parking the project)
 
 Use this whenever you stop working and want confirmation that nothing keeps accruing cost or sending notifications.

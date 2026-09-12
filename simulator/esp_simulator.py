@@ -33,6 +33,12 @@ regenerated on retry). A send that still fails after all attempts is appended
 to ``data/producer-failures.jsonl`` for manual reconciliation or replay,
 rather than crashing the run or silently vanishing; the run prints an
 acknowledged/failed summary at the end.
+
+M4: every acknowledged event for a run is also saved to
+``data/producer-runs/<run_id>.jsonl``. This is the producer-side half of the
+drain gate (``scripts/drain-check.py``): normal teardown compares this
+ledger against what the consumers actually archived in S3 before deleting
+the stream, so an incomplete run is reported, never silently called clean.
 """
 
 import argparse
@@ -202,26 +208,40 @@ def main():
     k = boto3.client("kinesis")
     acknowledged, failed = 0, 0
     failures_path = Path("data/producer-failures.jsonl")
-    for tick in range(a.seconds):
-        event_time = (
-            start + timedelta(seconds=tick)
-            if deterministic
-            else datetime.now(timezone.utc)
-        )
-        for esp in ESP_IDS:
-            event = build_event(
-                esp, tick, a.scenario, rng, event_time, run_id, deterministic
+    # M4 drain gate: every acknowledged send for this run is saved so a
+    # later reconciliation (scripts/drain-check.py) can compare "what the
+    # producer believes it sent" against "what actually landed in S3",
+    # without relying on anything that only lived in this process's memory.
+    acknowledged_path = Path(f"data/producer-runs/{run_id}.jsonl")
+    acknowledged_path.parent.mkdir(parents=True, exist_ok=True)
+    with acknowledged_path.open("w", encoding="utf-8") as ack_fh:
+        for tick in range(a.seconds):
+            event_time = (
+                start + timedelta(seconds=tick)
+                if deterministic
+                else datetime.now(timezone.utc)
             )
-            if put_with_retry(k, a.stream_name, event):
-                acknowledged += 1
-            else:
-                failed += 1
-                failures_path.parent.mkdir(parents=True, exist_ok=True)
-                with failures_path.open("a", encoding="utf-8") as fh:
-                    fh.write(json.dumps(event) + "\n")
-        time.sleep(a.interval)
+            for esp in ESP_IDS:
+                event = build_event(
+                    esp, tick, a.scenario, rng, event_time, run_id, deterministic
+                )
+                if put_with_retry(k, a.stream_name, event):
+                    acknowledged += 1
+                    ack_fh.write(json.dumps(event) + "\n")
+                else:
+                    failed += 1
+                    failures_path.parent.mkdir(parents=True, exist_ok=True)
+                    with failures_path.open("a", encoding="utf-8") as fh:
+                        fh.write(json.dumps(event) + "\n")
+            time.sleep(a.interval)
 
+    # A small pointer file, not stdout parsing, is how a calling wrapper
+    # (scripts/realtime-start.ps1) finds this run's ledger for the drain gate.
+    Path("data/producer-runs/.latest").write_text(run_id, encoding="utf-8")
+
+    print(f"Producer run: {run_id}")
     print(f"Producer summary: acknowledged={acknowledged} failed={failed}")
+    print(f"Acknowledged event ledger: {acknowledged_path}")
     if failed:
         print(
             f"{failed} send(s) failed after retries and were appended to "

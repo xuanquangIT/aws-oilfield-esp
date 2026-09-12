@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-09-12 (M4 local implementation; AWS acceptance pending)
+
+- Moved batch completion into Step Functions: Glue, crawler start, fresh-crawl polling and terminal outcome are cloud-owned; the PowerShell command only launches/observes. Retry is limited to transient Glue/time-out failures and overlapping publish runs fail explicitly.
+- Added the disposable-runtime expiry lease and drain gate. `realtime-start.ps1` creates an EventBridge Scheduler one-shot before deployment; the reaper is restricted to `DescribeStacks`/`DeleteStack` on the one realtime stack and rejects wrong-stack payloads. The producer writes acknowledged-event ledgers; teardown saves a bounded raw/quarantine reconciliation receipt and labels incomplete runs without blocking cost-protecting teardown.
+- Added read-only G4 IAM denial simulation (five workload-role cases), checksum-bound S3/DynamoDB export plus confirmation-gated restore tooling, and a scoped residual-resource inventory. All are offline-validated; no M4 AWS deployment, expiry invocation, IAM simulation, or restore drill has been claimed yet.
+
 ## Unreleased — 2026-09-12 (M3 AWS acceptance)
 
 - Verified all five M3 exit-gate criteria in AWS. Mixed sources: a corrected run's quality report showed `historical_silver_rows=72` and `realtime_silver_rows=180` together with `quality_passed=true`. Accounting: `unexplained_rows=0` (`accounted_rows == input_rows`, 684) on every passing run. Deterministic rerun: replaying the same frozen manifest in a second independent Glue run produced an identical `canonical_data_sha256`. Backfill isolation: a backfill run for an unrelated day (2026-09-13) left the previously published day's Parquet object's S3 ETag and size byte-for-byte unchanged, writing its own new immutable `publication_run_id` partition instead. Partition pruning: an Athena query against the crawled `silver` table scanned 7,351 bytes unfiltered versus 632 bytes filtered by `event_date` (~91% less), per `aws athena get-query-execution`'s `Statistics.DataScannedInBytes`. Republished a final run spanning both dates (325 silver rows, 6 gold rows) as the current approved pointer. Documented in `docs/09-RUNBOOK.md` section 6.7.
