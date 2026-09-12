@@ -332,6 +332,12 @@ class CoreStack(Stack):
             self,
             "AthenaWorkGroup",
             name=f"{project_prefix}-wg",
+            # Athena refuses to delete a workgroup that retains its own query
+            # execution history, even when it has no named/prepared queries.
+            # This project owns this workgroup and its result prefix, so a
+            # destructive core reset must be able to remove those artifacts
+            # without a manual console cleanup.
+            recursive_delete_option=True,
             work_group_configuration=athena.CfnWorkGroup.WorkGroupConfigurationProperty(
                 enforce_work_group_configuration=True,
                 bytes_scanned_cutoff_per_query=10 * 1024 * 1024,

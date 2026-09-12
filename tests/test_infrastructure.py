@@ -39,6 +39,9 @@ def test_disposable_runtime_and_cost_guards(tmp_path):
         "AWS::Glue::Job",
         {"MaxRetries": 0, "ExecutionProperty": {"MaxConcurrentRuns": 1}, "Timeout": 10},
     )
+    core.has_resource_properties(
+        "AWS::Athena::WorkGroup", {"RecursiveDeleteOption": True}
+    )
     core.has_resource_properties("AWS::Events::Rule", {"State": "DISABLED"})
     core.has_resource_properties(
         "AWS::S3::Bucket",
