@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.staticfiles import StaticFiles
 
 from dashboard.app.application.service import DashboardQueryService
 from dashboard.app.core.config import Settings
 from dashboard.app.infrastructure.aws_repository import AwsDashboardRepository
 from dashboard.app.infrastructure.fixture_repository import FixtureDashboardRepository
 from dashboard.app.presentation.router import router
+
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 def create_app(settings: Settings | None = None, repository=None) -> FastAPI:
@@ -33,4 +38,15 @@ def create_app(settings: Settings | None = None, repository=None) -> FastAPI:
         return JSONResponse(status_code=500, content={"detail": "internal service error"})
 
     app.include_router(router)
+
+    if STATIC_DIR.is_dir():
+        app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+        @app.get("/", include_in_schema=False)
+        async def root():
+            index_path = STATIC_DIR / "index.html"
+            if index_path.is_file():
+                return FileResponse(str(index_path))
+            return JSONResponse({"message": "ESP Dashboard UI static assets pending"})
+
     return app

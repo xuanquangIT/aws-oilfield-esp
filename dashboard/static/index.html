@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>ESP Surveillance Mission Control | Offshore Electrical Submersible Pump Platform</title>
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2306b6d4'><polygon points='12 2 2 22 22 22 12 2'/></svg>">
+</head>
+<body>
+
+  <!-- Top Operational Mission Control Bar -->
+  <header class="app-header" role="banner">
+    <div class="header-container">
+      
+      <!-- Brand & Project Identity -->
+      <div class="header-brand">
+        <div class="brand-rig-badge">
+          <svg class="brand-rig-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="12 2 2 22 22 22 12 2"></polygon>
+            <line x1="12" y1="6" x2="12" y2="18"></line>
+            <line x1="8" y1="14" x2="16" y2="14"></line>
+            <line x1="6" y1="18" x2="18" y2="18"></line>
+          </svg>
+        </div>
+        <div class="brand-text-group">
+          <h1 class="brand-title">
+            ESP Surveillance Mission Control
+            <span class="brand-tag">Offshore ESP</span>
+          </h1>
+          <div class="brand-subtitle">Downhole Electrical Submersible Pump Condition Monitoring</div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs (Multi-View Switcher) -->
+      <nav class="header-nav-tabs" aria-label="Dashboard Views">
+        <button class="nav-tab-btn active" data-view="fleet" id="tab-fleet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          Fleet Overview
+        </button>
+        <button class="nav-tab-btn" data-view="inspector" id="tab-inspector">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Wellbore Inspector
+        </button>
+        <button class="nav-tab-btn" data-view="batch" id="tab-batch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+          Curated Lake & KPIs
+        </button>
+        <button class="nav-tab-btn" data-view="health" id="tab-health">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+          Health & Rules
+        </button>
+      </nav>
+
+      <!-- Operational Header Controls -->
+      <div class="header-actions">
+        <!-- System Health Pill -->
+        <div class="system-status-pill fresh" id="system-status-pill" role="status" aria-live="polite">
+          <span class="status-beacon"></span>
+          <span id="system-status-text">Telemetry Live</span>
+        </div>
+
+        <!-- Telemetry Clock -->
+        <div class="telemetry-clock-box" id="telemetry-clock" title="Current UTC Observation Clock">
+          ----/--/-- --:--:-- UTC
+        </div>
+
+        <!-- Polling Ring -->
+        <div class="poll-timer-gauge" title="Next automatic 10s poll cycle">
+          <svg class="ring-svg">
+            <circle class="ring-bg" stroke-width="2" fill="transparent" r="7" cx="9" cy="9"/>
+            <circle class="ring-fill" id="poll-ring-circle" stroke-width="2" fill="transparent" r="7" cx="9" cy="9"/>
+          </svg>
+          <span id="poll-countdown-text">10s</span>
+        </div>
+
+        <!-- Refresh Button -->
+        <button class="btn-ctrl" id="btn-refresh" title="Poll latest state immediately" aria-label="Refresh Telemetry">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          Poll
+        </button>
+
+        <!-- Audio Alert Chime Toggle -->
+        <button class="btn-ctrl" id="btn-audio-mute" title="Toggle audio alert chime" aria-label="Toggle Sound Alert">
+          <span class="sound-wave-bars active" id="sound-wave-bars">
+            <span></span><span></span><span></span>
+          </span>
+          <span id="audio-btn-label">Audio On</span>
+        </button>
+
+        <!-- Snapshot Export -->
+        <button class="btn-ctrl" id="btn-export-snapshot" title="Export current telemetry snapshot as JSON">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Export
+        </button>
+
+        <!-- Rehearsal Storyboard Guide Trigger -->
+        <button class="btn-ctrl" id="btn-demo-guide" title="12-Minute presentation sequence">
+          Guide
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Notification Callouts (Stale / Unavailable / Active Alarm) -->
+  <div class="banner-stack" id="banner-container">
+    <div class="alert-callout stale" id="stale-banner" style="display: none;" role="alert">
+      <div class="alert-callout-inner">
+        <svg class="alert-callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span id="stale-message">Notice: Live stream disconnected. Preserving last known valid state.</span>
+      </div>
+    </div>
+
+    <div class="alert-callout critical" id="anomaly-banner" style="display: none;" role="alert">
+      <div class="alert-callout-inner">
+        <svg class="alert-callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span id="anomaly-message">Active System Alarm: Abnormal downhole condition detected.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main View Container -->
+  <main class="dashboard-viewport" role="main">
+
+    <!-- ====================================================================
+         VIEW 1: FLEET OVERVIEW
+         ==================================================================== -->
+    <div class="view-panel active" id="view-fleet">
+      
+      <!-- Top Fleet KPI Ribbon -->
+      <section aria-labelledby="kpi-ribbon-heading">
+        <h2 id="kpi-ribbon-heading" style="display: none;">Fleet Key Performance Indicators</h2>
+        <div class="kpi-ribbon-grid">
+          
+          <!-- Stat 1: Fleet Availability -->
+          <div class="kpi-stat-card" style="--card-accent: var(--status-normal);">
+            <div class="kpi-stat-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+            </div>
+            <div class="kpi-stat-details">
+              <span class="kpi-stat-title">Fleet Availability</span>
+              <div class="kpi-stat-num" id="fleet-active-count">3 / 3</div>
+              <span class="kpi-stat-subtext">Active downhole completions</span>
+            </div>
+          </div>
+
+          <!-- Stat 2: Total Realtime Liquid Production -->
+          <div class="kpi-stat-card" style="--card-accent: var(--accent-cyan);">
+            <div class="kpi-stat-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+              </svg>
+            </div>
+            <div class="kpi-stat-details">
+              <span class="kpi-stat-title">Fleet Instantaneous Flow</span>
+              <div class="kpi-stat-num" id="fleet-total-flow">-- m³/d</div>
+              <span class="kpi-stat-subtext">Sum of downhole production</span>
+            </div>
+          </div>
+
+          <!-- Stat 3: Mean Motor Temperature -->
+          <div class="kpi-stat-card" style="--card-accent: var(--status-warning);">
+            <div class="kpi-stat-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path>
+              </svg>
+            </div>
+            <div class="kpi-stat-details">
+              <span class="kpi-stat-title">Fleet Mean Motor Temp</span>
+              <div class="kpi-stat-num" id="fleet-mean-temp">-- °C</div>
+              <span class="kpi-stat-subtext">Nominal baseline: &lt; 90.0 °C</span>
+            </div>
+          </div>
+
+          <!-- Stat 4: Curated Lake Quality Gate -->
+          <div class="kpi-stat-card" style="--card-accent: var(--accent-indigo);">
+            <div class="kpi-stat-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9"></line>
+              </svg>
+            </div>
+            <div class="kpi-stat-details">
+              <span class="kpi-stat-title">Curated Quality Gate</span>
+              <div class="kpi-stat-num" style="font-size: 1.25rem;">
+                <span class="state-badge RUNNING" id="batch-quality-badge">Gate Passed</span>
+              </div>
+              <span class="kpi-stat-subtext" id="curated-run-subtext">Run: --</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Fleet Toolbar & Filtering -->
+      <div class="fleet-toolbar">
+        <div class="toolbar-title-group">
+          <h2 class="toolbar-section-title">Downhole ESP Wells</h2>
+          <span class="toolbar-subtext">Realtime telemetry feeds cached every 10s from DynamoDB latest-state</span>
+        </div>
+        <div class="toolbar-controls">
+          <div class="filter-pills-group">
+            <button class="filter-pill-btn active" data-filter="all" id="btn-filter-all">All Wells (3)</button>
+            <button class="filter-pill-btn" data-filter="normal" id="btn-filter-normal">Normal (2)</button>
+            <button class="filter-pill-btn" data-filter="alerts" id="btn-filter-alerts">Alerts (1)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live ESP Well Cards Grid -->
+      <div class="fleet-pumps-grid" id="pumps-grid-container" role="region" aria-label="ESP Well Status Cards">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+
+    </div>
+
+    <!-- ====================================================================
+         VIEW 2: WELLBORE SCHEMATIC INSPECTOR
+         ==================================================================== -->
+    <div class="view-panel" id="view-inspector">
+      <div class="inspector-layout">
+        
+        <!-- Left: Interactive Downhole Completion Wellbore Diagram -->
+        <div class="wellbore-schematic-card">
+          <div class="schematic-header">
+            <h3 class="schematic-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"></line><circle cx="12" cy="12" r="5"></circle></svg>
+              Downhole Wellbore Schematic
+            </h3>
+            <select class="well-dropdown-select" id="schematic-well-select">
+              <option value="ESP-101">Well: ESP-101</option>
+              <option value="ESP-102" selected>Well: ESP-102 (Active Test)</option>
+              <option value="ESP-103">Well: ESP-103</option>
+            </select>
+          </div>
+
+          <div class="schematic-canvas-box">
+            <!-- Professional Industrial Downhole Completion SVG Schematic -->
+            <svg class="wellbore-svg" viewBox="0 0 320 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Background Casing Borehole -->
+              <rect x="70" y="40" width="180" height="440" rx="4" fill="#0b111e" stroke="#1e293b" stroke-width="2"/>
+              <!-- Surface Wellhead Deck -->
+              <rect x="50" y="10" width="220" height="30" rx="4" fill="#152038" stroke="#334155" stroke-width="2"/>
+              <text x="160" y="30" fill="#94a3b8" font-size="11" font-family="monospace" text-anchor="middle" font-weight="bold">SURFACE WELLHEAD</text>
+
+              <!-- Tubing String running downhole -->
+              <rect x="145" y="40" width="30" height="180" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+              <text x="160" y="120" fill="#64748b" font-size="9" font-family="monospace" text-anchor="middle" transform="rotate(90, 160, 120)">TUBING STRING</text>
+
+              <!-- Multi-Stage Centrifugal ESP Pump Section -->
+              <g id="schematic-pump-section">
+                <rect x="130" y="220" width="60" height="80" rx="4" fill="#111d33" stroke="#06b6d4" stroke-width="2"/>
+                <!-- Impeller stage lines -->
+                <line x1="135" y1="235" x2="185" y2="235" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="3 2"/>
+                <line x1="135" y1="250" x2="185" y2="250" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="3 2"/>
+                <line x1="135" y1="265" x2="185" y2="265" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="3 2"/>
+                <line x1="135" y1="280" x2="185" y2="280" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="3 2"/>
+                <text x="160" y="260" fill="#f8fafc" font-size="10" font-family="monospace" text-anchor="middle" font-weight="bold">ESP PUMP</text>
+              </g>
+
+              <!-- Gas Separator / Intake Gauge -->
+              <rect x="135" y="300" width="50" height="25" fill="#152038" stroke="#334155" stroke-width="1.5"/>
+              <circle cx="160" cy="312" r="4" fill="#06b6d4"/>
+              <text x="160" y="316" fill="#94a3b8" font-size="8" font-family="monospace" text-anchor="middle">INTAKE</text>
+
+              <!-- Protector / Seal Section -->
+              <rect x="138" y="325" width="44" height="25" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+              <text x="160" y="341" fill="#64748b" font-size="8" font-family="monospace" text-anchor="middle">SEAL</text>
+
+              <!-- REDA Maximus Induction Motor Section -->
+              <g id="schematic-motor-section">
+                <rect x="132" y="350" width="56" height="95" rx="3" fill="#1a1c2e" stroke="#f59e0b" stroke-width="2"/>
+                <text x="160" y="390" fill="#f8fafc" font-size="10" font-family="monospace" text-anchor="middle" font-weight="bold">REDA MOTOR</text>
+                <text x="160" y="405" fill="#f59e0b" font-size="8" font-family="monospace" text-anchor="middle">THERMOCOUPLE</text>
+              </g>
+
+              <!-- Sensor Callout Lines & Data Labels -->
+              <!-- Flow Rate Callout -->
+              <line x1="190" y1="240" x2="250" y2="220" stroke="#06b6d4" stroke-width="1.5"/>
+              <circle cx="250" cy="220" r="3" fill="#06b6d4"/>
+              <text x="256" y="215" fill="#94a3b8" font-size="8" font-family="monospace">FLOW RATE</text>
+              <text x="256" y="228" fill="#06b6d4" font-size="11" font-family="monospace" font-weight="bold" id="schematic-flow-val">-- m³/d</text>
+
+              <!-- Motor Temperature Callout -->
+              <line x1="188" y1="390" x2="250" y2="390" stroke="#f59e0b" stroke-width="1.5"/>
+              <circle cx="250" cy="390" r="3" fill="#f59e0b"/>
+              <text x="256" y="385" fill="#94a3b8" font-size="8" font-family="monospace">MOTOR TEMP</text>
+              <text x="256" y="398" fill="#f59e0b" font-size="11" font-family="monospace" font-weight="bold" id="schematic-temp-val">-- °C</text>
+
+              <!-- Vibration Callout -->
+              <line x1="132" y1="410" x2="35" y2="410" stroke="#a855f7" stroke-width="1.5"/>
+              <circle cx="35" cy="410" r="3" fill="#a855f7"/>
+              <text x="5" y="402" fill="#94a3b8" font-size="8" font-family="monospace">VIBRATION</text>
+              <text x="5" y="422" fill="#a855f7" font-size="11" font-family="monospace" font-weight="bold" id="schematic-vib-val">-- mm/s</text>
+
+              <!-- Perforations in Reservoir -->
+              <line x1="60" y1="450" x2="70" y2="450" stroke="#f59e0b" stroke-width="3"/>
+              <line x1="60" y1="460" x2="70" y2="460" stroke="#f59e0b" stroke-width="3"/>
+              <line x1="250" y1="450" x2="260" y2="450" stroke="#f59e0b" stroke-width="3"/>
+              <line x1="250" y1="460" x2="260" y2="460" stroke="#f59e0b" stroke-width="3"/>
+              <text x="160" y="475" fill="#64748b" font-size="9" font-family="monospace" text-anchor="middle">PERFORATED RESERVOIR ZONE</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Right: Real-time Telemetry & Dynamic Operating Matrix -->
+        <div class="inspector-telemetry-pane">
+          
+          <div class="telemetry-overview-block">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;" id="inspector-well-title">Well ESP-102 Diagnostics</h3>
+                <span style="font-size: 0.8rem; color: var(--text-muted);" id="inspector-scenario-title">Scenario: low_flow</span>
+              </div>
+              <div style="display: flex; gap: 0.4rem;">
+                <span class="state-badge RUNNING" id="inspector-status-badge">RUNNING</span>
+                <span class="severity-tag warning" id="inspector-severity-badge">WARNING</span>
+              </div>
+            </div>
+
+            <!-- Signal Grid -->
+            <div class="esp-gauges-grid" style="padding: 0;">
+              <div class="dial-gauge-card">
+                <span class="dial-gauge-title">Instantaneous Flow</span>
+                <div class="dial-gauge-reading">
+                  <span class="dial-gauge-val" id="inspector-flow-val">--</span>
+                  <span class="dial-gauge-unit">m³/day</span>
+                </div>
+                <div class="dial-meter-track"><div class="dial-meter-bar warning" id="inspector-flow-bar" style="width: 30%;"></div></div>
+              </div>
+
+              <div class="dial-gauge-card">
+                <span class="dial-gauge-title">Motor Temperature</span>
+                <div class="dial-gauge-reading">
+                  <span class="dial-gauge-val" id="inspector-temp-val">--</span>
+                  <span class="dial-gauge-unit">°C</span>
+                </div>
+                <div class="dial-meter-track"><div class="dial-meter-bar warning" id="inspector-temp-bar" style="width: 75%;"></div></div>
+              </div>
+
+              <div class="dial-gauge-card">
+                <span class="dial-gauge-title">Motor Phase Current</span>
+                <div class="dial-gauge-reading">
+                  <span class="dial-gauge-val" id="inspector-curr-val">--</span>
+                  <span class="dial-gauge-unit">A</span>
+                </div>
+                <div class="dial-meter-track"><div class="dial-meter-bar nominal" id="inspector-curr-bar" style="width: 45%;"></div></div>
+              </div>
+
+              <div class="dial-gauge-card">
+                <span class="dial-gauge-title">Vibration Amplitude</span>
+                <div class="dial-gauge-reading">
+                  <span class="dial-gauge-val" id="inspector-vib-val">--</span>
+                  <span class="dial-gauge-unit">mm/s</span>
+                </div>
+                <div class="dial-meter-track"><div class="dial-meter-bar nominal" id="inspector-vib-bar" style="width: 20%;"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rolling Dual-Axis Trend Graph -->
+          <div class="dual-trend-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary);">
+                Downhole Correlation: Flow Rate vs Motor Temp
+              </span>
+              <span style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">
+                Cyan: Flow (m³/d) | Amber: Temp (°C)
+              </span>
+            </div>
+            <div class="sparkline-svg-container" style="height: 140px;" id="inspector-trend-chart">
+              <!-- Injected by app.js -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         VIEW 3: CURATED BATCH & DATA LAKE
+         ==================================================================== -->
+    <div class="view-panel" id="view-batch">
+      <div class="batch-lake-layout">
+        
+        <!-- Architecture Pipeline Flow Ribbon -->
+        <div class="lake-architecture-strip">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff;">Curated Data Pipeline & Reconciled Publication</h3>
+            <span class="state-badge RUNNING" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border-color: rgba(99, 102, 241, 0.4);">
+              S3 Curated Layer
+            </span>
+          </div>
+
+          <div class="pipeline-flow-steps">
+            <div class="pipeline-step-node">
+              <span class="pipeline-step-label">1. Ingestion Sources</span>
+              <span class="pipeline-step-val">Batch CSV + Realtime JSON</span>
+            </div>
+            <span class="pipeline-arrow">&rarr;</span>
+            <div class="pipeline-step-node">
+              <span class="pipeline-step-label">2. Glue Spark Job</span>
+              <span class="pipeline-step-val">Schema-v1 Contract Validated</span>
+            </div>
+            <span class="pipeline-arrow">&rarr;</span>
+            <div class="pipeline-step-node">
+              <span class="pipeline-step-label">3. Quality Gate</span>
+              <span class="pipeline-step-val" style="color: var(--status-normal);">Unexplained Rows: 0</span>
+            </div>
+            <span class="pipeline-arrow">&rarr;</span>
+            <div class="pipeline-step-node">
+              <span class="pipeline-step-label">4. Approved Publication</span>
+              <span class="pipeline-step-val" id="pipeline-pub-id">current.json Pointer</span>
+            </div>
+            <span class="pipeline-arrow">&rarr;</span>
+            <div class="pipeline-step-node">
+              <span class="pipeline-step-label">5. Athena Query</span>
+              <span class="pipeline-step-val">curated/silver/ Parquet</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Curated Lake Daily KPIs Table -->
+        <div class="lake-table-card">
+          <div class="lake-table-header">
+            <div>
+              <h3 style="font-size: 1rem; font-weight: 700; color: #fff;">Daily Analytical Performance Summary (Gold Layer)</h3>
+              <span style="font-size: 0.78rem; color: var(--text-muted);" id="batch-pub-timestamp">Published at: --</span>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <span class="badge badge-mode" id="badge-silver-count">Silver: -- rows</span>
+              <span class="badge badge-mode" id="badge-gold-count">Gold: -- rows</span>
+            </div>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="lake-data-table" aria-label="Curated Daily KPIs">
+              <thead>
+                <tr>
+                  <th>ESP Identifier</th>
+                  <th>Avg Liquid Rate (m³/d)</th>
+                  <th>Avg Oil Rate (m³/d)</th>
+                  <th>Avg Motor Temp (°C)</th>
+                  <th>Peak Vibration (mm/s)</th>
+                  <th>Validated Samples</th>
+                </tr>
+              </thead>
+              <tbody id="lake-table-body">
+                <tr>
+                  <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                    Loading publication data from curated data lake...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Athena SQL Workbench Helper -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary);">
+                Verified Athena SQL Query (curated/silver partition)
+              </span>
+            </div>
+            <pre class="athena-snippet-box" id="athena-sql-snippet">
+SELECT esp_id, event_date, COUNT(*) AS samples,
+       AVG(flow_rate) AS avg_liquid_rate_m3_day,
+       AVG(flow_rate * (1 - water_cut)) AS avg_oil_rate_m3_day,
+       AVG(motor_temperature) AS avg_motor_temperature_c,
+       MAX(vibration) AS peak_vibration_mm_s
+FROM silver
+WHERE publication_run_id = 'fixture-m5-run-001'
+GROUP BY esp_id, event_date;</pre>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         VIEW 4: HEALTH & ANOMALY RULES
+         ==================================================================== -->
+    <div class="view-panel" id="view-health">
+      <div class="health-dashboard-grid">
+        
+        <!-- Automated Anomaly Detection Matrix -->
+        <div class="health-metrics-card">
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff;">Operational Anomaly Rule Evaluation</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">
+            Real-time evaluation rules executed against incoming Kinesis observations before cooldown and SNS dispatch.
+          </p>
+
+          <div class="rules-audit-list">
+            <div class="rule-audit-item">
+              <div class="rule-audit-meta">
+                <span class="rule-audit-code">SHUTDOWN</span>
+                <span class="rule-audit-formula">Condition: status == "SHUTDOWN"</span>
+              </div>
+              <span class="state-badge RUNNING">Active Rule</span>
+            </div>
+
+            <div class="rule-audit-item">
+              <div class="rule-audit-meta">
+                <span class="rule-audit-code">LOW_FLOW_OVERHEAT</span>
+                <span class="rule-audit-formula">Condition: flow_rate &lt; 60 m³/d AND motor_temp &gt; 120 °C</span>
+              </div>
+              <span class="state-badge RUNNING">Active Rule</span>
+            </div>
+
+            <div class="rule-audit-item">
+              <div class="rule-audit-meta">
+                <span class="rule-audit-code">HIGH_VIBRATION_CURRENT</span>
+                <span class="rule-audit-formula">Condition: vibration &gt; 12 mm/s AND motor_current &gt; 75 A</span>
+              </div>
+              <span class="state-badge RUNNING">Active Rule</span>
+            </div>
+
+            <div class="rule-audit-item">
+              <div class="rule-audit-meta">
+                <span class="rule-audit-code">HIGH_TUBING_LOW_FLOW</span>
+                <span class="rule-audit-formula">Condition: tubing_pressure &gt; 900 psi AND flow_rate &lt; 60 m³/d</span>
+              </div>
+              <span class="state-badge RUNNING">Active Rule</span>
+            </div>
+
+            <div class="rule-audit-item">
+              <div class="rule-audit-meta">
+                <span class="rule-audit-code">LOW_FLOW_RATE</span>
+                <span class="rule-audit-formula">Condition: flow_rate &lt; 60 m³/d (Operational Warning)</span>
+              </div>
+              <span class="state-badge RUNNING">Active Rule</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Local Read API Cache Performance -->
+        <div class="health-metrics-card">
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff;">Server Cache & Latency Telemetry</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">
+            Shared local memory cache (10s TTL) eliminating redundant DynamoDB reads across multiple browser tabs.
+          </p>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-top: 0.5rem;">
+            <div class="dial-gauge-card">
+              <span class="dial-gauge-title">Pump Cache Hits</span>
+              <div class="dial-gauge-reading">
+                <span class="dial-gauge-val" id="health-pump-hits">0</span>
+                <span class="dial-gauge-unit" id="health-pump-ratio">100%</span>
+              </div>
+            </div>
+
+            <div class="dial-gauge-card">
+              <span class="dial-gauge-title">Publication Cache Hits</span>
+              <div class="dial-gauge-reading">
+                <span class="dial-gauge-val" id="health-pub-hits">0</span>
+                <span class="dial-gauge-unit" id="health-pub-ratio">100%</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="background: var(--bg-surface-elevated); padding: 0.85rem 1rem; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-subtle); margin-top: 0.5rem;">
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Last API Roundtrip Latency</span>
+            <span style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-cyan);" id="health-latency-val">0 ms</span>
+          </div>
+
+          <!-- Security Audit Verification -->
+          <div style="margin-top: 0.5rem;">
+            <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">
+              Security & G10 Gate Verification
+            </span>
+            <div class="rule-audit-item">
+              <div class="rule-audit-meta">
+                <span class="rule-audit-code">Loopback Binding (127.0.0.1)</span>
+                <span class="rule-audit-formula">Verified: Non-loopback requests rejected</span>
+              </div>
+              <span class="state-badge RUNNING">Enforced</span>
+            </div>
+            <div class="rule-audit-item" style="margin-top: 0.4rem;">
+              <div class="rule-audit-meta">
+                <span class="rule-audit-code">Zero Secret Exposure</span>
+                <span class="rule-audit-formula">Verified: 0 AWS credentials or SDKs in frontend assets</span>
+              </div>
+              <span class="state-badge RUNNING">Passed</span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Rehearsal Storyboard Modal -->
+  <div class="modal-overlay" id="guide-modal" role="dialog" aria-modal="true" aria-labelledby="guide-modal-title">
+    <div class="modal-window">
+      <div class="modal-window-header">
+        <h3 class="modal-window-title" id="guide-modal-title">12-Minute Rehearsal Storyboard</h3>
+        <button class="btn-close-modal" id="close-guide-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-window-body" style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary);">
+        <p>Demonstrate the end-to-end data platform to stakeholders in 5 structured phases:</p>
+        <div class="rules-audit-list">
+          <div class="rule-audit-item">
+            <div>
+              <strong style="color: #fff;">Phase 1 (0-2 min): Business Context & Architecture</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Explain Cost-Aware ESP Surveillance, local loopback server, and $0 monthly fixed dashboard fee.</div>
+            </div>
+            <span class="state-badge RUNNING">Step 1</span>
+          </div>
+          <div class="rule-audit-item">
+            <div>
+              <strong style="color: #fff;">Phase 2 (2-5 min): Realtime Low-Flow Detection</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Demonstrate ESP-102 entering low-flow gas lock; inspect downhole schematic and alarm callouts.</div>
+            </div>
+            <span class="state-badge RUNNING">Step 2</span>
+          </div>
+          <div class="rule-audit-item">
+            <div>
+              <strong style="color: #fff;">Phase 3 (5-8 min): Batch Curated Reconciliation</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Inspect row reconciliation counts (Silver: 252, Gold: 6, Unexplained: 0) and Athena SQL output.</div>
+            </div>
+            <span class="state-badge RUNNING">Step 3</span>
+          </div>
+          <div class="rule-audit-item">
+            <div>
+              <strong style="color: #fff;">Phase 4 (8-10 min): Stale & Unavailable Resilience</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Simulate network loss; observe graceful fallback preserving last observations without crashing.</div>
+            </div>
+            <span class="state-badge RUNNING">Step 4</span>
+          </div>
+          <div class="rule-audit-item">
+            <div>
+              <strong style="color: #fff;">Phase 5 (10-12 min): Clean Teardown</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Stop local process; demonstrate parked AWS core leaves zero compute charge.</div>
+            </div>
+            <span class="state-badge RUNNING">Step 5</span>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; background: var(--bg-surface-elevated);">
+        <button class="btn-ctrl" onclick="document.getElementById('guide-modal').classList.remove('open')">Close Guide</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Footer -->
+  <footer class="app-footer">
+    <div>
+      Cost-Aware Offshore ESP Data Platform &middot; Phase 1 Realtime Web Dashboard (M5) &middot; Loopback: <code>127.0.0.1:8765</code>
+    </div>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

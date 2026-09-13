@@ -37,7 +37,42 @@ class AwsDashboardRepository:
             row = {key: decoder.deserialize(value) for key, value in item.items()}
             esp_id = row.get("esp_id")
             if esp_id in PUMP_IDS:
-                by_id[esp_id] = PumpSnapshot(esp_id, str(row.get("timestamp", "")), str(row.get("status", "UNKNOWN")), str(row.get("scenario", "unknown")), _number(row.get("flow_rate")), _number(row.get("motor_temperature")), _number(row.get("motor_current")), _number(row.get("vibration")))
+                flow = _number(row.get("flow_rate"))
+                temp = _number(row.get("motor_temperature"))
+                curr = _number(row.get("motor_current"))
+                vib = _number(row.get("vibration"))
+                status_val = str(row.get("status", "UNKNOWN"))
+                scenario_val = str(row.get("scenario", "unknown"))
+                severity = str(row.get("severity", "")) or "normal"
+                finding = row.get("finding")
+                if not finding or severity == "normal":
+                    if status_val == "SHUTDOWN":
+                        severity = "critical"
+                        finding = "Pump shutdown"
+                    elif flow is not None and temp is not None and flow < 60 and temp > 120:
+                        severity = "critical"
+                        finding = "Low flow + motor overheating"
+                    elif vib is not None and curr is not None and vib > 12 and curr > 75:
+                        severity = "critical"
+                        finding = "High vibration + elevated current"
+                    elif flow is not None and flow < 60:
+                        severity = "warning"
+                        finding = "Low flow rate"
+                    elif scenario_val == "low_flow":
+                        severity = "warning"
+                        finding = "Low flow rate"
+                by_id[esp_id] = PumpSnapshot(
+                    esp_id,
+                    str(row.get("timestamp", "")),
+                    status_val,
+                    scenario_val,
+                    flow,
+                    temp,
+                    curr,
+                    vib,
+                    severity,
+                    finding,
+                )
         return [by_id[pump] for pump in PUMP_IDS if pump in by_id]
 
     def fetch_latest_publication(self) -> PublicationSnapshot:
@@ -47,4 +82,10 @@ class AwsDashboardRepository:
         report = json.loads(self._s3.get_object(Bucket=uri.netloc, Key=uri.path.lstrip("/"))["Body"].read())
         if not report.get("quality_passed"):
             raise ValueError("unapproved publication")
-        return PublicationSnapshot(pointer["published_run_id"], pointer["published_at"], True, report.get("counts", {}), pointer.get("kpi_summary", []))
+        summary_key = pointer.get("kpi_summary_key")
+        if not isinstance(summary_key, str) or not summary_key.startswith("curated/publication/runs/"):
+            raise ValueError("publication lacks dashboard KPI summary")
+        summary = json.loads(self._s3.get_object(Bucket=bucket, Key=summary_key)["Body"].read())
+        if summary.get("schema_version") != "dashboard-kpi-summary.v1" or summary.get("run_id") != pointer["published_run_id"] or not isinstance(summary.get("rows"), list):
+            raise ValueError("invalid dashboard KPI summary")
+        return PublicationSnapshot(pointer["published_run_id"], pointer["published_at"], True, report.get("counts", {}), summary["rows"])

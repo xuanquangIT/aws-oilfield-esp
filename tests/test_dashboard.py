@@ -69,3 +69,22 @@ def test_aws_repository_uses_batch_get_without_scan():
     rows = repository.fetch_pumps()
     assert rows[0].esp_id == "ESP-101"
     assert rows[0].flow_rate == 88.5
+
+
+def test_aws_repository_reads_only_pointer_referenced_kpi_summary():
+    class Body:
+        def __init__(self, value): self.value = value
+        def read(self): return self.value
+    class FakeS3:
+        def get_object(self, Bucket, Key):
+            values = {
+                "curated/publication/current.json": b'{"published_run_id":"run-1","published_at":"2026-09-13T00:00:00Z","quality_report":"s3://bucket/staging/m3/run-1/quality-report.json","kpi_summary_key":"curated/publication/runs/run-1/kpi-summary.json"}',
+                "staging/m3/run-1/quality-report.json": b'{"quality_passed":true,"counts":{"gold_rows":3}}',
+                "curated/publication/runs/run-1/kpi-summary.json": b'{"schema_version":"dashboard-kpi-summary.v1","run_id":"run-1","rows":[{"esp_id":"ESP-101","samples":24}]}',
+            }
+            return {"Body": Body(values[Key])}
+    repository = AwsDashboardRepository.__new__(AwsDashboardRepository)
+    repository._s3, repository._outputs = FakeS3(), {"DataBucketName": "bucket"}
+    publication = repository.fetch_latest_publication()
+    assert publication.published_run_id == "run-1"
+    assert publication.kpis == [{"esp_id": "ESP-101", "samples": 24}]

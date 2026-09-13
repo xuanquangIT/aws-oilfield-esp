@@ -375,14 +375,40 @@ assert_prefix_empty(silver_partition)
 assert_prefix_empty(gold_partition)
 silver.write.mode("append").partitionBy("publication_run_id", "event_date").parquet(s3_uri("curated/silver"))
 gold.write.mode("append").partitionBy("publication_run_id", "event_date").parquet(s3_uri("curated/gold"))
+
+# The dashboard must not query Athena or deserialize Parquet on every browser
+# refresh. Publish a bounded, immutable JSON projection beside the Parquet
+# result and advance the small pointer only after it exists.
+kpi_summary_key = f"curated/publication/runs/{run_id}/kpi-summary.json"
+kpi_summary = []
+for row in gold.orderBy(F.desc("event_date"), "esp_id").limit(250).collect():
+    kpi_summary.append(
+        {
+            "event_date": str(row["event_date"]),
+            "esp_id": row["esp_id"],
+            "avg_liquid_rate_m3_day": float(row["avg_liquid_rate_m3_day"]),
+            "avg_oil_rate_m3_day": float(row["avg_oil_rate_m3_day"]),
+            "avg_motor_temperature_c": float(row["avg_motor_temperature_c"]),
+            "peak_vibration_mm_s": float(row["peak_vibration_mm_s"]),
+            "samples": int(row["sample_count"]),
+            "relative_flow_deficit": float(row["relative_flow_deficit"]),
+        }
+    )
+boto3.client("s3").put_object(
+    Bucket=bucket,
+    Key=kpi_summary_key,
+    Body=(json.dumps({"schema_version": "dashboard-kpi-summary.v1", "run_id": run_id, "rows": kpi_summary}, sort_keys=True) + "\n").encode("utf-8"),
+    ContentType="application/json",
+)
 publication = {
-    "publication_version": 1,
+    "publication_version": 2,
     "published_run_id": run_id,
     "manifest_sha256": manifest_sha256,
     "canonical_data_sha256": canonical_data_sha256,
     "silver_location": s3_uri(silver_partition),
     "gold_location": s3_uri(gold_partition),
     "quality_report": f"{staging_root}/quality-report.json",
+    "kpi_summary_key": kpi_summary_key,
     "published_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
 }
 boto3.client("s3").put_object(
