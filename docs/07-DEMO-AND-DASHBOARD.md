@@ -33,6 +33,75 @@ The server reads the three known ESP keys with a batched operation and caches th
 
 Stopping the local process removes the dashboard runtime. No CloudFront distribution, API Gateway, Cognito pool, dashboard Lambda, container, VM or web-assets bucket exists in the required profile.
 
+### M5 implementation blueprint (approved before coding)
+
+Use a small Python local server and a dependency-light static single-page application. The server owns AWS SDK calls and serves the UI from the repository; the browser has no AWS SDK, profile, signed request, physical resource name or configuration file. This is deliberately not a hosted service and does not change the CDK stacks.
+
+| Component | Planned location | Responsibility | Must not do |
+|---|---|---|---|
+| Dashboard server | `dashboard/server.py` | Bind loopback, serve static files, validate API responses and translate safe errors | Listen on LAN, proxy arbitrary AWS requests or expose tracebacks |
+| Read service | `dashboard/read_models.py` | Resolve core outputs, batch-read the registered pump IDs, fetch the approved KPI publication | Scan DynamoDB, run Athena or read raw/quarantine data |
+| Cache/telemetry | `dashboard/cache.py` | Shared TTL cache, publication-version cache, request/cache/freshness counters | Persist credentials or silently convert stale data into fresh data |
+| Fixture provider | `dashboard/fixtures.py` | Deterministic normal, low-flow, stale and unavailable responses | Contact AWS in fixture mode |
+| Browser assets | `dashboard/static/` | Responsive cards, KPI panel, accessibility labels and explicit loading/stale/unavailable states | Contain secrets, AWS SDK code or operational controls |
+| Launcher | `scripts/dashboard.ps1` | Validate selected profile/region, start loopback process and print the local URL | Deploy, destroy or mutate AWS resources |
+
+The first implementation may add only the minimal Python web-server dependency needed for routing/static files and its pinned lock entry. It must not add a JavaScript build chain unless a plain static SPA cannot meet the acceptance tests. The server defaults to `127.0.0.1:8765`; `0.0.0.0`, a non-loopback bind, and CORS origins other than that exact local origin are rejected rather than configurable shortcuts.
+
+#### Read and cache sequence
+
+```mermaid
+sequenceDiagram
+    participant Browser as Browser localhost
+    participant API as Local dashboard API
+    participant Cache as Shared TTL cache
+    participant DDB as DynamoDB LatestState
+    participant S3 as S3 publication/KPI
+
+    Browser->>API: GET /api/v1/pumps
+    API->>Cache: read 10-second pump snapshot
+    alt cache miss or expired
+        API->>DDB: BatchGetItem registered ESP IDs
+        DDB-->>API: latest observations
+        API->>Cache: validated snapshot + fetched time
+    end
+    API-->>Browser: allow-listed snapshot + freshness
+    Browser->>API: GET /api/v1/kpis/latest
+    API->>Cache: read publication version
+    alt changed or operator refresh
+        API->>S3: GET approved pointer then approved KPI JSON
+        S3-->>API: versioned KPI document
+        API->>Cache: schema-validated KPI snapshot
+    end
+    API-->>Browser: KPI summary + publication metadata
+```
+
+Cache entries carry `fetched_at`, source version and last successful payload. A failed refresh returns the last successful payload only with `state: "stale"`; after 45 seconds without a successful refresh it returns `state: "unavailable"` with no fabricated measurements. The health endpoint exposes only aggregate counters and ages: cache hits/misses, last successful DynamoDB/S3 refresh, dependency state and app version.
+
+#### Stable response envelope
+
+Every data endpoint returns a versioned envelope so the UI can evolve without exposing provider objects:
+
+```json
+{
+  "schema_version": "dashboard.v1",
+  "state": "fresh",
+  "fetched_at": "2026-09-13T04:00:00Z",
+  "data_age_seconds": 4,
+  "data": []
+}
+```
+
+`state` is exactly `fresh`, `stale`, or `unavailable`. `/pumps` carries a list of the existing allow-listed pump fields; `/kpis/latest` carries the approved run ID, publication time, quality decision and allow-listed aggregate KPI fields. The server validates DynamoDB attribute types and KPI JSON before populating a cache. A malformed source is an unavailable dependency, never a partially guessed response.
+
+#### Build and test order
+
+1. Add fixture provider, response schema and unit tests for allow-list, unknown pump rejection, state transitions and no-AWS fixture mode.
+2. Add server routes/static shell and loopback-only integration tests; assert browser assets contain no credential-like strings, AWS SDK import or physical resource name.
+3. Add DynamoDB batch-read adapter with injected fake client tests, then S3 publication adapter with schema/version tests.
+4. Connect a real parked core for one normal and one low-flow bounded realtime run; capture API/UI freshness and stale/unavailable evidence.
+5. Run the two rehearsal and 60-minute measurement gates before describing M5 as accepted.
+
 ### API contract
 
 Expose these loopback-only, read-only endpoints:
