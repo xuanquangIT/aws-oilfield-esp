@@ -1,64 +1,245 @@
 # Offshore ESP Data Platform
 
-A cost-aware AWS data engineering capstone for synthetic electric submersible pump (ESP) surveillance. The business story connects operational fault visibility with historical production analysis.
+[![CI](https://github.com/xuanquangIT/aws-oilfield-esp/actions/workflows/validate.yml/badge.svg)](https://github.com/xuanquangIT/aws-oilfield-esp/actions/workflows/validate.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![AWS CDK](https://img.shields.io/badge/AWS%20CDK-2.x-FF9900.svg)](https://aws.amazon.com/cdk/)
+[![Project Status](https://img.shields.io/badge/status-active%20development-yellow.svg)](PROJECT-STATUS.md)
 
-**Scope: this repository will implement the complete batch-and-realtime data product from ingestion through consumer use.** Current status is foundation only: no AWS deployment, dashboard implementation, real Glue run, billing result or end-to-end cloud evidence is claimed. See [project status](PROJECT-STATUS.md).
+A cost-aware, evidence-driven AWS data platform for **synthetic offshore Electric Submersible Pump (ESP) telemetry**. The project combines bounded realtime surveillance with reproducible batch analytics, data-quality gates, operational recovery, and a local customer-facing dashboard.
 
-## Phase 1 scope commitment
+> This repository is designed as a realistic cloud data engineering reference project. It uses synthetic telemetry and simplified anomaly rules; it is **not** an industrial control system and does not claim equipment diagnostic accuracy.
 
-```text
-Historical CSV + realtime ESP events
-  -> validate and normalize
-  -> raw archive or quarantine
-  -> canonical silver and daily gold KPIs
-  -> catalog and Athena query
-  -> approved KPI publication
-  -> local read API and realtime customer dashboard
+## Why this project exists
+
+Oilfield telemetry systems need to answer two different questions well:
+
+1. **What needs attention now?** — recent pump state, anomalies, and operational signals.
+2. **What happened over time?** — reconciled historical telemetry, daily KPIs, and queryable analytical data.
+
+This project demonstrates how those two paths can share one governed data contract while remaining cost-conscious and reproducible in a sandbox AWS account.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    CSV[Historical CSV] --> RAW[S3 raw inputs]
+    SIM[ESP simulator] --> K[Kinesis - ephemeral]
+    K --> INGEST[Lambda stream processor]
+    K --> ALERT[Lambda anomaly detector]
+    INGEST --> STATE[DynamoDB latest state]
+    INGEST --> RAW
+    INGEST --> Q[Quarantine]
+    ALERT --> SNS[SNS alerts]
+
+    RAW --> ETL[Glue ETL]
+    META[Pump metadata] --> ETL
+    SFN[Step Functions] --> ETL
+    ETL --> SILVER[S3 silver Parquet]
+    ETL --> GOLD[S3 gold KPIs]
+    SILVER --> CRAWLER[Glue crawler]
+    CRAWLER --> ATHENA[Athena]
+    GOLD --> PUB[Approved publication]
+
+    STATE --> API[Local FastAPI read API]
+    PUB --> API
+    API --> UI[Local dashboard]
 ```
 
-Both sources must reconcile into the published analytical result. The dashboard consumes latest operational state from DynamoDB and the approved KPI publication from S3; it is not a mock or a separate data store. The hosted CloudFront/API Gateway/Cognito profile remains optional because the local-first dashboard completes the required consumer flow with no new fixed AWS cost.
+The persistent **core stack** owns storage, DynamoDB, Lambda functions, Glue, Athena, Step Functions, budget controls, and supporting resources. The **realtime stack** owns the temporary Kinesis stream and event-source mappings so realtime infrastructure can be created for a demo and removed afterward.
 
-## Start here
+For the detailed architecture, trade-offs, and ADRs, see [docs/02-ARCHITECTURE.md](docs/02-ARCHITECTURE.md).
 
-| Intent | Read / run |
+## Current implementation status
+
+The project tracks implementation separately from acceptance evidence so planned capabilities are never presented as complete.
+
+| Area | Current state |
 |---|---|
-| Understand the product and navigate | [Documentation hub](docs/00-START-HERE.md) |
-| Install, validate and deploy | [Getting started](docs/01-GETTING-STARTED.md) |
-| Understand current and target architecture | [Architecture](docs/02-ARCHITECTURE.md) |
-| Understand telemetry and domain scope | [Data domain and contract](docs/03-DATA-DOMAIN-AND-CONTRACT.md) |
-| Run, park, recover and troubleshoot | [Operations](docs/04-OPERATIONS.md) |
-| Control cost, access and governance | [Cost and security](docs/05-COST-AND-SECURITY.md) |
-| Implement milestones and study DEA-C01 | [Delivery and learning](docs/06-DELIVERY-AND-LEARNING.md) |
-| Build and present the dashboard | [Demo and dashboard](docs/07-DEMO-AND-DASHBOARD.md) |
+| Data contract and quarantine | Implemented and AWS-verified |
+| Realtime latest-state correctness | Implemented and AWS-verified with monotonic DynamoDB writes |
+| Alert cooldown / recovery state | Implemented and AWS-verified |
+| Batch reconciliation and publication | Implemented and AWS-verified with deterministic reruns and immutable outputs |
+| Step Functions orchestration | Implemented and AWS-verified |
+| Recovery / export / restore drills | Implemented and AWS-verified |
+| Local FastAPI + dashboard | Implemented; AWS-mode smoke tested |
+| Final M5 customer rehearsal gates | Still open |
 
-## Operating model
+See [PROJECT-STATUS.md](PROJECT-STATUS.md) for the implementation ledger and evidence details.
 
-- **Local:** tests and template synthesis; no AWS calls or deployment required.
-- **Parked:** core resources and small datasets remain; no Kinesis, no scheduled ETL.
-- **Demo:** add a one-shard Kinesis stream and two consumers; run a bounded scenario; remove realtime in a finally block.
-- **Dashboard demo:** run the web UI and read API on localhost only; use existing DynamoDB/S3 data; stop the local process afterward.
-- **Reset:** export what matters, then explicitly delete project data and both stacks. Shared bootstrap resources need separate accounting.
+## Key capabilities
 
-Near-zero idle spend is a design objective, not a guaranteed zero bill. A budget is an alert, not a spending cap.
+- **Realtime ingestion** with a bounded, disposable one-shard Kinesis stream.
+- **Schema validation and quarantine** for invalid telemetry.
+- **Idempotent raw history** keyed by stable event identity.
+- **Monotonic latest state** in DynamoDB so late or duplicate events cannot regress current state.
+- **Anomaly detection** with deterministic alert IDs, cooldown, and recovery state.
+- **Mixed-source batch processing** across historical CSV and archived realtime JSON.
+- **Manifest-driven Glue ETL** with SHA-256-bound inputs and reproducible runs.
+- **Immutable silver/gold outputs** plus an approved publication pointer.
+- **Athena analytics** over curated Parquet with partition-pruning evidence.
+- **Local FastAPI dashboard backend** reading real DynamoDB state and approved KPI data.
+- **Infrastructure as Code** with AWS CDK.
+- **Cost-aware lifecycle controls** for deploy, demo, park, export, restore, and destroy workflows.
+- **Offline CI validation** without requiring AWS credentials.
 
-Current gross planning estimates in `us-east-1` are approximately **$0.03/month parked**, **$0.66–$0.97/month for two or three controlled demos**, **$9.46/month for one complete demo each day**, and **$67.90/month for continuous streaming plus daily batch**. Credits and shared free-tier allowances are excluded; use measured billing to replace modeled values.
+## Quick start
 
-## Workspace map
+### Prerequisites
 
-```text
-docs/                 eight primary guides plus architecture decisions
-docs/adr/             architectural decisions and trade-offs
-infrastructure/       two AWS CDK stacks
-src/                  deployed stream, anomaly and Glue code
-simulator/            synthetic realtime producer
-scripts/              checked PowerShell lifecycle commands
-sql/                  current Athena analytics
-tests/                offline behavioral and template checks
-data/                 generated synthetic input; not customer data
-evidence/             validation report and cloud evidence template
-.github/workflows/    offline CI; no AWS deployment
+- Python **3.12**
+- Node.js **24**
+- npm
+- PowerShell
+- AWS CLI v2 for cloud workflows
+- An AWS sandbox account/profile for deployment scenarios
+
+### Local validation
+
+Local validation does **not** require AWS credentials or deployment.
+
+```powershell
+git clone https://github.com/xuanquangIT/aws-oilfield-esp.git
+cd aws-oilfield-esp
+
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
+npm ci
+
+.\scripts\validate.ps1
 ```
 
-Use the project virtual environment and pinned local CDK CLI. The existing directory was not a Git repository at review time; CI becomes active only after you put it in a repository and enable Actions.
+The validation workflow runs tests, checks documentation links, and synthesizes the CDK application without deploying resources.
 
-Synthetic telemetry and simplified rules support a cloud engineering demonstration. They do not establish equipment diagnostic accuracy or suitability for offshore control.
+For full setup instructions, see [docs/01-GETTING-STARTED.md](docs/01-GETTING-STARTED.md).
+
+## Running the AWS demo
+
+> AWS deployment can incur charges. Use a dedicated sandbox account/profile and verify the selected account and region before creating resources.
+
+Configure your shell:
+
+```powershell
+$env:AWS_PROFILE = 'your-sandbox-profile'
+$env:AWS_DEFAULT_REGION = 'us-east-1'
+$env:AWS_REGION = $env:AWS_DEFAULT_REGION
+
+aws sso login --profile $env:AWS_PROFILE
+aws sts get-caller-identity
+```
+
+Deploy the persistent core:
+
+```powershell
+.\scripts\deploy-core.ps1 -BudgetEmail 'your-real-email-address'
+```
+
+Run a bounded realtime scenario:
+
+```powershell
+.\scripts\realtime-start.ps1 -DurationMinutes 5 -Scenario normal
+```
+
+Run the batch flow:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/seed-batch-data.py
+.\scripts\upload-batch.ps1
+.\scripts\run-batch.ps1
+```
+
+Use the complete operational sequence in [docs/09-RUNBOOK.md](docs/09-RUNBOOK.md) when performing AWS acceptance or recovery drills.
+
+## Dashboard
+
+The required consumer experience runs locally and adds no dedicated always-on dashboard infrastructure.
+
+The dashboard backend:
+
+- binds to loopback by default;
+- uses the operator's normal AWS credential chain server-side;
+- never sends AWS credentials to browser code;
+- reads latest ESP state from DynamoDB;
+- reads approved KPI publication data from S3;
+- caches reads to avoid unnecessary AWS requests.
+
+See [docs/07-DEMO-AND-DASHBOARD.md](docs/07-DEMO-AND-DASHBOARD.md) for dashboard modes, rehearsal criteria, and customer-demo guidance.
+
+## Cost model
+
+Near-zero idle spend is a design objective, not a guarantee of a zero AWS bill.
+
+The repository intentionally separates persistent core resources from disposable realtime infrastructure. Kinesis is created only for bounded demos, ETL is not scheduled continuously, and lifecycle scripts explicitly park or destroy temporary resources.
+
+Current modeled examples are documented in [docs/05-COST-AND-SECURITY.md](docs/05-COST-AND-SECURITY.md). Always replace modeled estimates with measured billing evidence for your own account, region, usage pattern, and AWS pricing period.
+
+## Repository structure
+
+```text
+.github/workflows/    offline CI validation
+dashboard/            local FastAPI API and browser dashboard
+data/                 generated synthetic input
+docs/                 architecture, operations, cost, demo and learning guides
+evidence/             validation reports and cloud evidence records
+infrastructure/       AWS CDK stacks
+scripts/              deployment, lifecycle, recovery and validation commands
+simulator/            synthetic ESP realtime producer
+sql/                  Athena queries
+src/                  stream processing, anomaly detection and Glue code
+tests/                offline behavioral and infrastructure tests
+```
+
+## Documentation
+
+| Topic | Document |
+|---|---|
+| Documentation hub | [docs/00-START-HERE.md](docs/00-START-HERE.md) |
+| Setup and deployment | [docs/01-GETTING-STARTED.md](docs/01-GETTING-STARTED.md) |
+| Architecture | [docs/02-ARCHITECTURE.md](docs/02-ARCHITECTURE.md) |
+| Data domain and contract | [docs/03-DATA-DOMAIN-AND-CONTRACT.md](docs/03-DATA-DOMAIN-AND-CONTRACT.md) |
+| Operations | [docs/04-OPERATIONS.md](docs/04-OPERATIONS.md) |
+| Cost, security and governance | [docs/05-COST-AND-SECURITY.md](docs/05-COST-AND-SECURITY.md) |
+| Delivery and acceptance | [docs/06-DELIVERY-AND-LEARNING.md](docs/06-DELIVERY-AND-LEARNING.md) |
+| Dashboard and demo | [docs/07-DEMO-AND-DASHBOARD.md](docs/07-DEMO-AND-DASHBOARD.md) |
+| Sources | [docs/08-SOURCES.md](docs/08-SOURCES.md) |
+| Operational runbook | [docs/09-RUNBOOK.md](docs/09-RUNBOOK.md) |
+| Implementation ledger | [PROJECT-STATUS.md](PROJECT-STATUS.md) |
+| Change history | [CHANGELOG.md](CHANGELOG.md) |
+
+## Contributing
+
+Contributions are welcome. Before opening a pull request:
+
+1. Read [PROJECT-STATUS.md](PROJECT-STATUS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+2. Install the locked dependencies.
+3. Run `scripts/validate.ps1` locally.
+4. Add failure/recovery tests for behavioral changes where meaningful.
+5. For new AWS resources, document ownership, lifecycle, permissions, cost impact, and teardown behavior.
+6. Keep documentation and implementation status synchronized with code changes.
+
+Please do not commit credentials, generated customer-like data, account identifiers, or secrets.
+
+## Security and responsible use
+
+This repository is intended for sandbox experimentation, learning, portfolio demonstration, and architecture discussion.
+
+- Telemetry is synthetic.
+- Rules are simplified examples.
+- The system is not intended for safety-critical or production equipment control.
+- Deployments should use least-privilege sandbox credentials and explicit cost monitoring.
+- Review [docs/05-COST-AND-SECURITY.md](docs/05-COST-AND-SECURITY.md) before cloud deployment.
+
+## Roadmap
+
+The immediate release goal is to close the remaining M5 consumer-experience acceptance gates, including repeated live rehearsals, stale/error behavior, clean-machine recreation, freshness/cache measurements, and customer-facing evidence.
+
+Longer-term extensions may explore hosted dashboards, larger-scale streaming, buffered writes, stronger IAM boundaries, observability, and production-grade disaster recovery. These are extensions, not claims about the current baseline.
+
+## License
+
+A repository license has not yet been published. Until a license is added, normal copyright restrictions apply even though the source is publicly visible.
+
+If this project is intended for broad open-source reuse, adding an explicit OSI-approved license should be treated as a release requirement.
+
+---
+
+Built to make AWS data engineering trade-offs visible, testable, reproducible, and explainable.
