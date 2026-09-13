@@ -17,7 +17,7 @@ A budget reports spend and is not a hard cap. The local `finally` cleanup cannot
 
 ## Monthly cost estimate
 
-Reviewed 2026-09-06. This estimate models the code currently in this repository in `us-east-1` for a 30-day month. Values are USD before tax and deliberately exclude promotional credits and account-wide free-tier allowances. They are planning figures, not an AWS quote; replace modeled Lambda duration, log volume and short-lived stream time with measured billing after a rehearsal.
+Reviewed 2026-09-13. This estimate models the code currently in this repository in `us-east-1` for a 30-day month. Values are USD before tax and deliberately exclude promotional credits and account-wide free-tier allowances, except where the hosted SSO row explicitly identifies Cognito's published SAML/OIDC MAU allowance. They are planning figures, not an AWS quote; replace modeled Lambda duration, log volume and short-lived stream time with measured billing after a rehearsal.
 
 ### Decision table
 
@@ -25,13 +25,16 @@ Reviewed 2026-09-06. This estimate models the code currently in this repository 
 |---|---|---:|---:|
 | Frozen / parked | Core stack retained; no stream, simulator, Glue run or Athena query | **$0.03** | **$0.10** |
 | Two demos | Two 5-minute streaming runs; two ETL jobs; two crawlers; 20 queries | **$0.66** | **$1.25** |
+| Two hosted demos | Above plus one authenticated dashboard viewer for 60 minutes per demo | **$0.66** (+$0.004) + Cognito MAU caveat | **$1.30** |
 | Three demos | Three 5-minute streaming runs; three ETL jobs; three crawlers; 30 queries | **$0.97** | **$1.50** |
+| Three hosted demos | Above plus one authenticated dashboard viewer for 60 minutes per demo | **$0.98** + Cognito MAU caveat | **$1.55** |
 | One full demo every day | 5-minute streaming + one batch/crawler + 10 queries on each of 30 days | **$9.46** | **$12** |
+| Daily hosted demo | Above plus one authenticated dashboard viewer for 60 minutes/day | **$9.52** + Cognito MAU caveat | **$12.25** |
 | Streaming 24x7 + daily batch | 7.776 million events; current per-event S3 writes | **$67.90** | **$75** |
 | Streaming 24x7 after batching S3 writes | Same load; approximately six events per S3 object | **$35.50** | **$42** |
 | 24x7 worst alert storm | Every event publishes to one confirmed email subscriber | **$227.31** | Do not operate |
 
-The recommended portfolio operating model is **two or three controlled demos, then frozen**. Expect about **$0.66–$0.97/month** for the project itself and use **$1.50** as the working ceiling. Keep the project-tag-filtered $5 budget after activating and verifying the `Project` cost-allocation tag. AWS Budgets reports after usage and is not a hard stop.
+The recommended portfolio operating model is **two or three controlled demos, then frozen**. The optional hosted profile adds only about **$0.002/viewer-hour** in request/storage/compute planning usage; a one-hour viewer per demo keeps the rounded two-demo estimate at **$0.66** and raises the three-demo estimate to **$0.98/month**. Use **$1.55** as the hosted-demo working ceiling, retain the project-tag-filtered $5 budget after activating and verifying the `Project` cost-allocation tag, and destroy the hosted stack after the share window. AWS Budgets reports after usage and is not a hard stop.
 
 “Full every day” can mean two different things. Running the complete demonstration once each day is about **$9.46/month**. Leaving the stream and simulator active continuously while also running batch daily is about **$67.90/month** with the current handler.
 
@@ -47,6 +50,8 @@ The recommended portfolio operating model is **two or three controlled demos, th
 - Ten Athena queries are allowed per full run. Each is modeled at Athena's 10 MiB minimum because the workgroup also stops a query above 10 MiB.
 - A short demo reserves one Kinesis shard-hour for create, warm-up, run and destroy. Actual billing duration must be read from Cost and Usage data.
 - The local dashboard uses the existing DynamoDB table and S3 KPI object. Its cached 10–15 second polling adds less than $0.001 per short demo at this scale and creates no fixed AWS resource.
+- The optional hosted dashboard models one viewer for 60 minutes: 721 HTTP API/Lambda calls (one `/pumps` and one `/health` poll every 10 seconds plus one KPI read), 724 CloudFront requests, 1,080 DynamoDB RRUs, five S3 GETs and 100 bytes of logs per API request. It uses conservative planning rates of $1/million requests for CloudFront and HTTP API, $0.12/GB CloudFront egress, and the existing Lambda/DynamoDB/S3 rates. No NAT, VPC, ALB, WAF, Route 53 hosted zone, provisioned concurrency, CloudFront real-time logs, CodePipeline or CodeBuild is included.
+- Hosted SSO uses Cognito User Pool SAML/OIDC federation. Cognito currently includes 50 federated MAUs per month, then charges $0.015/MAU. This is a service allowance, not a reason to allow unlimited sharing; before exceeding 50 monthly users, add `(MAUs - 50) × $0.015` to the scenario and review the budget.
 
 ### Unit prices used
 
@@ -62,8 +67,11 @@ The recommended portfolio operating model is **two or three controlled demos, th
 | CloudWatch Logs | $0.50/GB ingested and $0.03/GB-month stored at the first tier |
 | SNS Standard/email | $0.50/million API requests + $2/100,000 email deliveries |
 | AWS Budgets | Cost/usage monitoring and notifications are free |
+| CloudFront hosted-dashboard planning | $1.00/million requests; $0.12/GB data out (conservative, geography-dependent) |
+| API Gateway HTTP API hosted-dashboard planning | $1.00/million requests |
+| Cognito SAML/OIDC federation | 50 MAUs/month included; $0.015/MAU above allowance |
 
-Official references: [Kinesis](https://aws.amazon.com/kinesis/data-streams/pricing/), [S3](https://aws.amazon.com/s3/pricing/), [DynamoDB](https://aws.amazon.com/dynamodb/pricing/), [Lambda](https://aws.amazon.com/lambda/pricing/), [Glue](https://aws.amazon.com/glue/pricing/), [crawler minimum](https://docs.aws.amazon.com/pdfs/whitepapers/latest/cost-modeling-data-lakes/cost-modeling-data-lakes.pdf), [Athena](https://aws.amazon.com/athena/pricing/), [Step Functions](https://aws.amazon.com/step-functions/pricing/), [CloudWatch](https://aws.amazon.com/cloudwatch/pricing/), [SNS](https://aws.amazon.com/sns/faqs/), and [AWS Budgets](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/).
+Official references: [Kinesis](https://aws.amazon.com/kinesis/data-streams/pricing/), [S3](https://aws.amazon.com/s3/pricing/), [DynamoDB](https://aws.amazon.com/dynamodb/pricing/), [Lambda](https://aws.amazon.com/lambda/pricing/), [Glue](https://aws.amazon.com/glue/pricing/), [crawler minimum](https://docs.aws.amazon.com/pdfs/whitepapers/latest/cost-modeling-data-lakes/cost-modeling-data-lakes.pdf), [Athena](https://aws.amazon.com/athena/pricing/), [Step Functions](https://aws.amazon.com/step-functions/pricing/), [CloudWatch](https://aws.amazon.com/cloudwatch/pricing/), [SNS](https://aws.amazon.com/sns/faqs/), [AWS Budgets](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/), [CloudFront](https://aws.amazon.com/cloudfront/pricing/), [API Gateway HTTP API](https://aws.amazon.com/api-gateway/pricing/), and [Cognito](https://aws.amazon.com/cognito/pricing/).
 
 The following deployed definitions have no project charge while unused: CloudFormation stacks, IAM roles/policies, Lambda function definitions without invocations, an idle SNS topic, Glue job/crawler definitions, an idle Step Functions state machine, an Athena workgroup, and the disabled EventBridge schedule. Glue Data Catalog remains free while this project stays within the first one million stored objects and one million monthly requests. The budget in this stack only monitors and notifies, so it is free under AWS Budgets pricing. The required dashboard runs locally and adds no hosted service. Same-region service transfers are assumed; unusual internet or cross-region transfer is outside the model and must be measured if introduced.
 
@@ -116,7 +124,10 @@ The calculator contains every assumption and unit price:
 .\.venv\Scripts\python.exe scripts\estimate-cost.py parked
 .\.venv\Scripts\python.exe scripts\estimate-cost.py demo --demos 2
 .\.venv\Scripts\python.exe scripts\estimate-cost.py demo --demos 3
+.\.venv\Scripts\python.exe scripts\estimate-cost.py hosted-demo --demos 2
+.\.venv\Scripts\python.exe scripts\estimate-cost.py hosted-demo --demos 3
 .\.venv\Scripts\python.exe scripts\estimate-cost.py daily-demo
+.\.venv\Scripts\python.exe scripts\estimate-cost.py hosted-daily-demo
 .\.venv\Scripts\python.exe scripts\estimate-cost.py continuous
 .\.venv\Scripts\python.exe scripts\estimate-cost.py continuous-batched-s3
 .\.venv\Scripts\python.exe scripts\estimate-cost.py alert-storm
