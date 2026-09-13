@@ -6,6 +6,14 @@ This document defines the required local dashboard, optional hosted profile, cus
 
 Status: **required Phase 1 consumer deliverable; implementation and evidence not yet complete.** Phase 1 cannot be called a complete customer product until the dashboard consumes real latest state and approved KPIs, then passes G10. The default profile is local-first so it introduces no new fixed monthly AWS service charge.
 
+Backend foundation is implemented and offline-tested: `dashboard/server.py` binds only `127.0.0.1:8765`, offers the four versioned read-only endpoints, provides deterministic fixture modes, shared freshness cache and AWS read adapters. Start the fixture API without AWS access:
+
+```powershell
+.\scripts\dashboard.ps1 -Mode fixture -FixtureState normal
+```
+
+Use `-Mode aws` only after M3 publishes a `kpi_summary` into the approved publication pointer; the existing pointer supplies real run/quality metadata but intentionally does not fabricate Parquet KPI rows. Browser UI, live integration and G10 rehearsal evidence remain open.
+
 ### Product boundary
 
 The dashboard gives an operator or customer a browser view of synthetic ESP health without requiring AWS Console access. It has two read models:
