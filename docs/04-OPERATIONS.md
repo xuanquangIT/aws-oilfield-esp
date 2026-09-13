@@ -70,13 +70,13 @@ Afterward inspect shared CDKToolkit assets/ECR and Glue/provider-created log gro
 
 Rebuild with the same configuration and lockfiles, then seed/upload the synthetic dataset. Generated physical names may change. Restore real exported data explicitly if needed; IaC restores resources, not deleted content.
 
-### M4 reliability controls (local implementation; live proof pending)
+### M4 reliability controls (AWS-verified)
 
 `run-batch.ps1` is now only a Step Functions launcher/observer: the state machine itself runs Glue, starts the crawler, and polls until it is `READY` after a fresh crawl. It has bounded transient-only retry and an explicit overlapping-publish failure.
 
 `realtime-start.ps1` creates an EventBridge Scheduler one-shot expiry before the stream is deployed. The expiry reaper can only inspect/delete the exact realtime CloudFormation stack; it cannot delete the core stack or subordinate resources directly. The normal path waits briefly, runs the ledger-based drain gate, then deletes both the realtime stack and the schedule. A failed drain check is deliberately a loud incomplete receipt, not a teardown blocker; expiry also favors stopping spend over preserving unprocessed events.
 
-The implementation has offline tests and synthesis evidence only. Before claiming M4 complete, run the live acceptance procedure in runbook section 6.8, including a disconnected-client expiry, IAM denial simulation and export/restore on synthetic data. Alarm requirements remain Lambda Errors/Throttles/IteratorAge, failure-destination delivery failures, Glue failures, workflow timeouts and quarantine spikes; scope and cost any paid alarms first.
+AWS acceptance is recorded in runbook section 6.8, including disconnected-client expiry, IAM denial simulation, drain reconciliation and two destructive synthetic export/reset/recreate/restore drills. Alarm requirements remain Lambda Errors/Throttles/IteratorAge, failure-destination delivery failures, Glue failures, workflow timeouts and quarantine spikes; scope and cost any paid alarms first.
 
 ## Batch analytics
 

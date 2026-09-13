@@ -20,11 +20,20 @@ def _module(name: str, filename: str):
 
 exporter = _module("export_core_data", "export-core-data.py")
 restorer = _module("restore_core_data", "restore-core-data.py")
+verifier = _module("verify_core_restore", "verify-core-restore.py")
 
 
 def test_export_rejects_s3_key_that_escapes_the_export_directory(tmp_path):
+    (tmp_path / "s3").mkdir()
     with pytest.raises(ValueError, match="Unsafe S3 key"):
         exporter._safe_destination(tmp_path, "../outside")
+    with pytest.raises(ValueError, match="Unsafe S3 key"):
+        exporter._safe_destination(tmp_path, "..\\outside")
+
+
+def test_safe_destination_accepts_nested_key_when_export_root_exists(tmp_path):
+    (tmp_path / "s3").mkdir()
+    assert exporter._safe_destination(tmp_path, "raw/realtime/event.json") == tmp_path / "s3" / "raw" / "realtime" / "event.json"
 
 
 def test_restore_refuses_a_tampered_export_before_aws_writes(tmp_path):
@@ -44,3 +53,10 @@ def test_restore_refuses_a_tampered_export_before_aws_writes(tmp_path):
 
     with pytest.raises(ValueError, match="Checksum mismatch"):
         restorer._load_verified(tmp_path)
+
+
+def test_canonical_items_ignores_scan_order_but_not_content():
+    left = [{"esp_id": {"S": "ESP-101"}}, {"esp_id": {"S": "ESP-102"}}]
+    right = list(reversed(left))
+    assert verifier._canonical_items(left) == verifier._canonical_items(right)
+    assert verifier._canonical_items(left) != verifier._canonical_items(left[:1])

@@ -2,6 +2,8 @@
 
 ## Unreleased — 2026-09-12 (M4 AWS partial acceptance)
 
+- Completed the two required AWS destructive export/reset/recreate/restore drills; both restored 2,039 S3 objects (2,134,080 bytes) and 3/0 DynamoDB items. Added a readback SHA-256 and canonical-table verifier, plus bounded parallel export/restore for practical recovery runs.
+
 - Started an independent Step Functions execution against a frozen M3 manifest and verified cloud-owned completion end-to-end: Glue succeeded, then the workflow started/polled the crawler to a fresh `READY`/`SUCCEEDED` crawl, with no client-side crawler operation.
 - Deployed M4 core controls and verified the five G4 workload-role denial cases with `iam:SimulatePrincipalPolicy`; every prohibited action returned `implicitDeny`.
 - Ran a normal one-minute realtime scenario: the M4 drain receipt reconciled 180 acknowledged producer events to 180 raw S3 objects, with no quarantine or missing events. The realtime stack was then removed and Kinesis was empty.

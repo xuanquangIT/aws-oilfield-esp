@@ -10,18 +10,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
+from pathlib import PurePosixPath
 
 import boto3
 
 
 def _safe_destination(root: Path, key: str) -> Path:
-    candidate = (root / "s3" / key).resolve()
-    expected = (root / "s3").resolve()
-    if expected not in candidate.parents and candidate != expected:
+    parsed = PurePosixPath(key)
+    # S3 object keys use POSIX separators.  Reject all forms that Windows
+    # could reinterpret as a path escape before constructing a local path.
+    if parsed.is_absolute() or "\\" in key or any(part in {"", ".", ".."} for part in parsed.parts):
         raise ValueError(f"Unsafe S3 key for local export: {key!r}")
-    return candidate
+    return root / "s3" / Path(*parsed.parts)
 
 
 def _sha256(path: Path) -> str:
@@ -34,21 +37,29 @@ def _sha256(path: Path) -> str:
 
 def export(bucket: str, tables: list[str], destination: Path, region: str) -> dict:
     destination.mkdir(parents=True, exist_ok=False)
+    # Create the root before resolving child paths.  On Windows a missing
+    # intermediate directory can make ``Path.resolve`` reject a safe key.
+    (destination / "s3").mkdir()
     s3 = boto3.client("s3", region_name=region)
     dynamodb = boto3.client("dynamodb", region_name=region)
-    objects = []
+    source_objects = []
     for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket):
-        for item in page.get("Contents", []):
-            key = item["Key"]
-            target = _safe_destination(destination, key)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with target.open("wb") as fh:
-                body = s3.get_object(Bucket=bucket, Key=key)["Body"]
-                for chunk in iter(lambda: body.read(1024 * 1024), b""):
-                    fh.write(chunk)
-            objects.append(
-                {"key": key, "size": target.stat().st_size, "sha256": _sha256(target)}
-            )
+        source_objects.extend(page.get("Contents", []))
+
+    def export_object(item: dict) -> dict:
+        key = item["Key"]
+        target = _safe_destination(destination, key)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("wb") as fh:
+            body = s3.get_object(Bucket=bucket, Key=key)["Body"]
+            for chunk in iter(lambda: body.read(1024 * 1024), b""):
+                fh.write(chunk)
+        return {"key": key, "size": target.stat().st_size, "sha256": _sha256(target)}
+
+    # Each S3 key has an independent local destination.  Bounded parallelism
+    # keeps destructive-recovery export practical without weakening hashes.
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        objects = list(pool.map(export_object, source_objects))
     exported_tables = []
     for table in tables:
         target = destination / "dynamodb" / f"{table}.jsonl"
