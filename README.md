@@ -1,9 +1,11 @@
 # Offshore ESP Data Platform
 
 [![CI](https://github.com/xuanquangIT/aws-oilfield-esp/actions/workflows/validate.yml/badge.svg)](https://github.com/xuanquangIT/aws-oilfield-esp/actions/workflows/validate.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![AWS CDK](https://img.shields.io/badge/AWS%20CDK-2.x-FF9900.svg)](https://aws.amazon.com/cdk/)
 [![Project Status](https://img.shields.io/badge/status-active%20development-yellow.svg)](PROJECT-STATUS.md)
+[![Parked Spend](https://img.shields.io/badge/Parked%20Spend-~$0.03/mo-success.svg)](docs/05-COST-AND-SECURITY.md)
 
 A cost-aware, evidence-driven AWS data platform for **synthetic offshore Electric Submersible Pump (ESP) telemetry**. The project combines bounded realtime surveillance with reproducible batch analytics, data-quality gates, operational recovery, and a local customer-facing dashboard.
 
@@ -19,6 +21,10 @@ Oilfield telemetry systems need to answer two different questions well:
 This project demonstrates how those two paths can share one governed data contract while remaining cost-conscious and reproducible in a sandbox AWS account.
 
 ## Architecture
+
+The platform connects real-time downhole telemetry streaming with scheduled batch processing, storing raw evidence in an S3 Data Lake, cataloging canonical datasets, running serverless analytics with Athena, and serving a live mission-control dashboard.
+
+![AWS Cloud - OilField ESP Data Platform Architecture](docs/assets/offshore-esp-aws-architecture.png)
 
 ```mermaid
 flowchart LR
@@ -82,6 +88,35 @@ See [PROJECT-STATUS.md](PROJECT-STATUS.md) for the implementation ledger and evi
 - **Cost-aware lifecycle controls** for deploy, demo, park, export, restore, and destroy workflows.
 - **Offline CI validation** without requiring AWS credentials.
 
+## Surveillance Mission Control Dashboard
+
+The required consumer experience runs locally and adds no dedicated always-on dashboard infrastructure.
+
+The dashboard backend:
+- binds to loopback by default (`127.0.0.1:8765`);
+- uses the operator's normal AWS credential chain server-side;
+- never sends AWS credentials to browser code;
+- reads latest ESP state from DynamoDB;
+- reads approved KPI publication data from S3;
+- caches reads to avoid unnecessary AWS requests.
+
+### Live Fleet Overview
+Observes real-time telemetry feeds polled from DynamoDB, calculates fleet-level availability and aggregate flow, and displays rolling trend curves for active wells.
+
+![ESP Surveillance Mission Control - Fleet Overview](docs/assets/dashboard-fleet-overview.png)
+
+### Wellbore Inspector & Physical Diagnostics
+Deep-dive inspection view for individual wells featuring a downhole completion schematic, REDA motor thermocouple readings, intake flow rates, and dynamic flow-vs-temperature correlation charts.
+
+![Wellbore Inspector - Downhole Diagnostics](docs/assets/dashboard-wellbore-inspector.png)
+
+### Operational Alarms & Fault Detection
+Real-time anomaly detection with alert episode tracking and cooldown logic. Alerts surface instantly in the UI with severity ratings when critical thresholds are exceeded (e.g. low flow + motor overheating).
+
+![Operational Alarms State](docs/assets/dashboard-alerts-overview.png)
+
+See [docs/07-DEMO-AND-DASHBOARD.md](docs/07-DEMO-AND-DASHBOARD.md) for dashboard modes, rehearsal criteria, and customer-demo guidance.
+
 ## Quick start
 
 ### Prerequisites
@@ -111,6 +146,19 @@ npm ci
 The validation workflow runs tests, checks documentation links, and synthesizes the CDK application without deploying resources.
 
 For full setup instructions, see [docs/01-GETTING-STARTED.md](docs/01-GETTING-STARTED.md).
+
+### Local Dashboard Preview (Fixture Mode)
+
+Test and explore the surveillance mission control frontend locally with synthetic fault scenarios:
+
+```powershell
+# Launch normal operating conditions
+.\scripts\dashboard.ps1 -Mode fixture -FixtureState normal
+
+# Simulate low flow & motor overheating critical alarm
+.\scripts\dashboard.ps1 -Mode fixture -FixtureState low_flow
+```
+Open [http://127.0.0.1:8765](http://127.0.0.1:8765) in your browser.
 
 ## Running the AWS demo
 
@@ -148,21 +196,6 @@ Run the batch flow:
 ```
 
 Use the complete operational sequence in [docs/09-RUNBOOK.md](docs/09-RUNBOOK.md) when performing AWS acceptance or recovery drills.
-
-## Dashboard
-
-The required consumer experience runs locally and adds no dedicated always-on dashboard infrastructure.
-
-The dashboard backend:
-
-- binds to loopback by default;
-- uses the operator's normal AWS credential chain server-side;
-- never sends AWS credentials to browser code;
-- reads latest ESP state from DynamoDB;
-- reads approved KPI publication data from S3;
-- caches reads to avoid unnecessary AWS requests.
-
-See [docs/07-DEMO-AND-DASHBOARD.md](docs/07-DEMO-AND-DASHBOARD.md) for dashboard modes, rehearsal criteria, and customer-demo guidance.
 
 ## Cost model
 
@@ -207,14 +240,15 @@ tests/                offline behavioral and infrastructure tests
 
 ## Contributing
 
-Contributions are welcome. Before opening a pull request:
+Contributions are welcome! Before opening a pull request:
 
 1. Read [PROJECT-STATUS.md](PROJECT-STATUS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
-2. Install the locked dependencies.
-3. Run `scripts/validate.ps1` locally.
-4. Add failure/recovery tests for behavioral changes where meaningful.
-5. For new AWS resources, document ownership, lifecycle, permissions, cost impact, and teardown behavior.
-6. Keep documentation and implementation status synchronized with code changes.
+2. Adhere to the [Code of Conduct](CODE_OF_CONDUCT.md).
+3. Install the locked dependencies.
+4. Run `scripts/validate.ps1` locally.
+5. Add failure/recovery tests for behavioral changes where meaningful.
+6. For new AWS resources, document ownership, lifecycle, permissions, cost impact, and teardown behavior.
+7. Keep documentation and implementation status synchronized with code changes.
 
 Please do not commit credentials, generated customer-like data, account identifiers, or secrets.
 
@@ -226,7 +260,7 @@ This repository is intended for sandbox experimentation, learning, portfolio dem
 - Rules are simplified examples.
 - The system is not intended for safety-critical or production equipment control.
 - Deployments should use least-privilege sandbox credentials and explicit cost monitoring.
-- Review [docs/05-COST-AND-SECURITY.md](docs/05-COST-AND-SECURITY.md) before cloud deployment.
+- Review [docs/05-COST-AND-SECURITY.md](docs/05-COST-AND-SECURITY.md) and [SECURITY.md](SECURITY.md) before cloud deployment.
 
 ## Roadmap
 
@@ -236,9 +270,7 @@ Longer-term extensions may explore hosted dashboards, larger-scale streaming, bu
 
 ## License
 
-A repository license has not yet been published. Until a license is added, normal copyright restrictions apply even though the source is publicly visible.
-
-If this project is intended for broad open-source reuse, adding an explicit OSI-approved license should be treated as a release requirement.
+This project is licensed under the [MIT License](LICENSE) - see the [LICENSE](LICENSE) file for details.
 
 ---
 

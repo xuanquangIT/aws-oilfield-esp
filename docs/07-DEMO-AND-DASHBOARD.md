@@ -132,6 +132,15 @@ Reject unknown pump IDs, unsupported parameters and non-loopback access. Never r
 
 The responsive single page contains three pump cards, latest status/severity, signal values, observation time/data age, daily KPI trend, data-quality state and published run ID. Fixture mode enables offline UI development and deterministic screenshots before AWS integration.
 
+![ESP Surveillance Mission Control - Fleet Overview](assets/dashboard-fleet-overview.png)
+*Figure 1: Mission Control Fleet Overview showing live telemetry, liquid flow, motor temperature, vibration, and data quality gates.*
+
+![Wellbore Inspector - Downhole Diagnostics](assets/dashboard-wellbore-inspector.png)
+*Figure 2: Wellbore Inspector showing physical downhole ESP schematic, sensor readings, and correlation trends.*
+
+![Operational Alarms State](assets/dashboard-alerts-overview.png)
+*Figure 3: Fleet Overview under critical alarm conditions (low flow and motor overheating).*
+
 Only one request can be in flight per browser. On an API failure, keep the last values with an explicit `stale` banner and last-success timestamp. After the configured stale threshold, show `unavailable`. Do not display stale values as live, infer missing samples as zero, or render unbounded raw-event charts.
 
 ### Cost controls

@@ -1,16 +1,112 @@
+# ==============================================================================
+# Python & Bytecode
+# ==============================================================================
 __pycache__/
-.pytest_cache/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
 .venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Testing & Code Quality
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# ==============================================================================
+# AWS CDK & Cloud Infrastructure
+# ==============================================================================
 cdk.out/
-*.pyc
-data/historical.csv
-node_modules/
-.cache/
-.env
-*.pem
 cdk.context.json
-evidence/runs/
+.cdk.staging/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+
+# ==============================================================================
+# Node & NPM Dependencies
+# ==============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ==============================================================================
+# Editors & Operating System
+# ==============================================================================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ==============================================================================
+# Secrets, Credentials & Local Configuration
+# ==============================================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*.pkcs12
+id_rsa*
+id_ed25519*
+credentials
+aws-credentials*
+
+# ==============================================================================
+# Project Local Caches & Runtime Artifacts
+# ==============================================================================
+.cache/
+data/historical.csv
 data/exports/
 data/producer-runs/
 data/drain-receipts/
-.vscode/
+evidence/runs/
+*.tmp
+*.log
