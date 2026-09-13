@@ -43,18 +43,19 @@ Stopping the local process removes the dashboard runtime. No CloudFront distribu
 
 ### M5 implementation blueprint (approved before coding)
 
-Use a small Python local server and a dependency-light static single-page application. The server owns AWS SDK calls and serves the UI from the repository; the browser has no AWS SDK, profile, signed request, physical resource name or configuration file. This is deliberately not a hosted service and does not change the CDK stacks.
+Use a FastAPI ASGI backend following a ports-and-adapters structure and a static single-page application supplied separately. The server owns AWS SDK calls; the browser has no AWS SDK, profile, signed request, physical resource name or configuration file. This is deliberately not a hosted service and does not change the CDK stacks.
 
-| Component | Planned location | Responsibility | Must not do |
+| Component | Location | Responsibility | Must not do |
 |---|---|---|---|
-| Dashboard server | `dashboard/server.py` | Bind loopback, serve static files, validate API responses and translate safe errors | Listen on LAN, proxy arbitrary AWS requests or expose tracebacks |
-| Read service | `dashboard/read_models.py` | Resolve core outputs, batch-read the registered pump IDs, fetch the approved KPI publication | Scan DynamoDB, run Athena or read raw/quarantine data |
-| Cache/telemetry | `dashboard/cache.py` | Shared TTL cache, publication-version cache, request/cache/freshness counters | Persist credentials or silently convert stale data into fresh data |
-| Fixture provider | `dashboard/fixtures.py` | Deterministic normal, low-flow, stale and unavailable responses | Contact AWS in fixture mode |
+| ASGI composition root | `dashboard/app/main.py` | Create the FastAPI app, compose dependencies and apply security headers | Contain route or AWS logic |
+| HTTP presentation | `dashboard/app/presentation/` | Versioned Pydantic DTOs, routers and safe HTTP errors | Access AWS clients or cache values directly |
+| Application service | `dashboard/app/application/` | Orchestrate repository reads and thread-safe cache/freshness rules | Depend on FastAPI or boto3 |
+| Domain port/models | `dashboard/app/domain/` | Provider-agnostic dashboard models and repository protocol | Know credentials, HTTP or CloudFormation |
+| Infrastructure adapters | `dashboard/app/infrastructure/` | Deterministic fixtures and the read-only DynamoDB/S3/CloudFormation adapter | Scan DynamoDB, run Athena or read raw/quarantine data |
 | Browser assets | `dashboard/static/` | Responsive cards, KPI panel, accessibility labels and explicit loading/stale/unavailable states | Contain secrets, AWS SDK code or operational controls |
 | Launcher | `scripts/dashboard.ps1` | Validate selected profile/region, start loopback process and print the local URL | Deploy, destroy or mutate AWS resources |
 
-The first implementation may add only the minimal Python web-server dependency needed for routing/static files and its pinned lock entry. It must not add a JavaScript build chain unless a plain static SPA cannot meet the acceptance tests. The server defaults to `127.0.0.1:8765`; `0.0.0.0`, a non-loopback bind, and CORS origins other than that exact local origin are rejected rather than configurable shortcuts.
+The backend pins FastAPI, Uvicorn and HTTPX in the requirements and lockfile. It exposes no OpenAPI/docs endpoint in the local demo profile, applies no-store/nosniff/frame/referrer headers, and defaults to `127.0.0.1:8765`; a non-loopback bind is rejected by configuration rather than left as a convenience switch.
 
 #### Read and cache sequence
 

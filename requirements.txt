@@ -2,3 +2,6 @@ aws-cdk-lib==2.267.0
 constructs==10.6.0
 boto3>=1.40,<2
 pytest>=8,<9
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+httpx>=0.27,<1
