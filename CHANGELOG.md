@@ -2,6 +2,8 @@
 
 ## Unreleased — 2026-09-12 (M4 AWS partial acceptance)
 
+- Added the M5 static dashboard integration to the loopback FastAPI backend. M3 now publishes a bounded immutable KPI JSON summary referenced by publication pointer v2, allowing the dashboard to read real KPIs without Athena polling. AWS smoke-tested the UI root, DynamoDB latest state and the approved KPI publication; full G10 rehearsal evidence remains pending.
+
 - Completed the two required AWS destructive export/reset/recreate/restore drills; both restored 2,039 S3 objects (2,134,080 bytes) and 3/0 DynamoDB items. Added a readback SHA-256 and canonical-table verifier, plus bounded parallel export/restore for practical recovery runs.
 
 - Started an independent Step Functions execution against a frozen M3 manifest and verified cloud-owned completion end-to-end: Glue succeeded, then the workflow started/polled the crawler to a fresh `READY`/`SUCCEEDED` crawl, with no client-side crawler operation.

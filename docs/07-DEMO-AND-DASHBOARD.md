@@ -14,6 +14,8 @@ Backend foundation is implemented and offline-tested: `dashboard/server.py` bind
 
 Use `-Mode aws` only after M3 publishes a `kpi_summary` into the approved publication pointer; the existing pointer supplies real run/quality metadata but intentionally does not fabricate Parquet KPI rows. Browser UI, live integration and G10 rehearsal evidence remain open.
 
+**AWS integration verified on 2026-09-13.** Core update published the M3 `publication_version: 2` pointer and immutable `dashboard-kpi-summary.v1` artifact. A Step Functions publication completed after Glue and a fresh crawler gate. A short loopback AWS-mode smoke test served the UI root with HTTP 200, returned three `fresh` DynamoDB pump cards and six KPI rows from the approved publication. This is integration evidence, not the two full rehearsals or the 60-minute G10 measurement.
+
 ### Product boundary
 
 The dashboard gives an operator or customer a browser view of synthetic ESP health without requiring AWS Console access. It has two read models:
