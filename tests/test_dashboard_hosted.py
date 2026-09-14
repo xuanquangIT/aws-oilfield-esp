@@ -49,7 +49,7 @@ def test_github_oidc_trust_is_pinned_to_protected_environment(tmp_path):
     )
     trust = json.dumps(role["AssumeRolePolicyDocument"])
     assert "token.actions.githubusercontent.com" in trust
-    assert "repo:xuanquangIT/aws-oilfield-esp:environment:dashboard-production" in trust
+    assert "repo:xuanquangIT@80450825/aws-oilfield-esp@1358796241:environment:dashboard-production" in trust
     policy = next(
         value["Properties"]["PolicyDocument"] for value in template.find_resources("AWS::IAM::Policy").values()
         if "GitHubDeployRole" in json.dumps(value["Properties"].get("Roles", []))

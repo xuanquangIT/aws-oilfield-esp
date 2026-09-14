@@ -45,20 +45,6 @@ jobs:
       - run: npx cdk synth oilfield-esp-dashboard-hosted --quiet
       - name: Require protected-environment role variable
         run: test -n "$DASHBOARD_ROLE_ARN"
-      - name: Verify GitHub OIDC claim boundary
-        run: |
-          python - <<'PY'
-          import base64, json, os, urllib.request
-          request = urllib.request.Request(
-              os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com",
-              headers={"Authorization": "Bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]},
-          )
-          token = json.load(urllib.request.urlopen(request))["value"]
-          payload = token.split(".")[1] + "=" * (-len(token.split(".")[1]) % 4)
-          claims = json.loads(base64.urlsafe_b64decode(payload))
-          print(json.dumps({key: claims.get(key) for key in ("sub", "aud", "repository", "ref", "environment")}, sort_keys=True))
-          assert claims["aud"] == "sts.amazonaws.com"
-          PY
       - name: Obtain short-lived AWS credentials through GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:

@@ -180,7 +180,7 @@ Security boundary:
 - API Gateway requires a Cognito issuer/client JWT for every data endpoint. `/api/v1/config` is public by design but returns only OAuth public identifiers, never AWS identifiers or secrets.
 - Cognito self-sign-up is disabled. Passwords require 14 characters with all character classes; optional MFA is TOTP-only so there is no SMS spend. Create users only through `scripts/create-dashboard-user.py`.
 - The Lambda has only `dynamodb:BatchGetItem` on the core latest-state table and `s3:GetObject` for the approved publication pointer, KPI summaries and quality report. It cannot read raw/quarantine objects, Kinesis, SNS, CloudFormation, or browser credentials.
-- GitHub Actions receives short-lived credentials through OIDC. Its trust policy pins `repo:xuanquangIT/aws-oilfield-esp:environment:dashboard-production`; protect that GitHub Environment with required reviewers before allowing unattended production deploys.
+- GitHub Actions receives short-lived credentials through OIDC. Its trust policy pins the immutable GitHub owner/repository IDs plus `dashboard-production`; protect that GitHub Environment with required reviewers before allowing unattended production deploys.
 
 AWS IAM Identity Center can be used as the enterprise SSO identity provider, but it is intentionally a manual tenant-admin integration: create a custom SAML application in Identity Center using Cognito's service-provider metadata, exchange IdP metadata, then add the Cognito SAML provider/client mapping. This avoids embedding an Identity Center admin credential or silently granting every AWS account user access to the dashboard. Native Cognito invite credentials are the secure default until that application assignment is approved.
 

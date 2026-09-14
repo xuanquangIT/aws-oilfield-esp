@@ -100,7 +100,9 @@ class DashboardHostedStack(Stack):
                 conditions={
                     "StringEquals": {
                         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                        "token.actions.githubusercontent.com:sub": "repo:xuanquangIT/aws-oilfield-esp:environment:dashboard-production",
+                        # GitHub's current OIDC subject includes immutable
+                        # owner/repository IDs as well as their readable names.
+                        "token.actions.githubusercontent.com:sub": "repo:xuanquangIT@80450825/aws-oilfield-esp@1358796241:environment:dashboard-production",
                     }
                 },
             ),
