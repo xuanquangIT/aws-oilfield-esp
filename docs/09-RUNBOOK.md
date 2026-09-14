@@ -4,6 +4,62 @@ This is the single hands-on command reference for this project: environment setu
 
 Read [Getting started](01-GETTING-STARTED.md) first if this is your first pass; use this file afterward as the fast reference.
 
+## 10. Hosted dashboard, Cognito and GitHub Actions OIDC
+
+The optional hosted stack gives a public HTTPS URL without making dashboard data public. It is separate from `oilfield-esp-core` and does **not** create a Kinesis stream. It creates CloudFront, a private static-assets S3 bucket, an HTTP API, one on-demand Lambda, a Cognito user pool and a narrowly trusted GitHub OIDC role. There is no NAT gateway, ALB, EC2/container, Route 53 hosted zone, WAF, CodePipeline, CodeBuild or provisioned concurrency.
+
+### 10.1 Deploy the hosted stack
+
+Use the named non-root profile already configured in step 2. This first deployment creates the OIDC role that future GitHub runs will use.
+
+```powershell
+. .\scripts\common.ps1
+Invoke-Checked $script:ProjectCdk @('diff', "$script:ProjectPrefix-dashboard-hosted")
+Invoke-Checked $script:ProjectCdk @('deploy', "$script:ProjectPrefix-dashboard-hosted", '--require-approval', 'never')
+.\.venv\Scripts\python.exe scripts\configure-hosted-auth.py
+aws cloudformation describe-stacks --stack-name oilfield-esp-dashboard-hosted --query 'Stacks[0].Outputs' --output table
+```
+
+`configure-hosted-auth.py` is required after every hosted deploy. It updates only the Cognito callback and logout URLs after CloudFront has supplied its generated hostname. This deliberately resolves the CloudFront/Cognito dependency cycle; CI runs the same safe script after CDK deploy.
+
+Open the `DashboardUrl` output only after an account exists. An anonymous browser is redirected to Cognito; it cannot call a dashboard data API.
+
+### 10.2 Create an invite-only credential
+
+Self-registration is disabled. The following first command creates the account but deliberately sends no email. Add `--send-invite` only after confirming the recipient address and accepting Cognito's temporary-password email.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\create-dashboard-user.py --email 'operator@example.com'
+.\.venv\Scripts\python.exe scripts\create-dashboard-user.py --email 'operator@example.com' --send-invite
+```
+
+The user sets a new password at first sign-in. Cognito's optional TOTP MFA can then be enrolled in the managed login UI; SMS MFA is disabled to keep both the attack surface and cost down. Never place a Cognito password, token, AWS profile, access key or user-pool client secret in the repository or browser storage. The SPA uses authorization-code plus PKCE and only keeps the short-lived identity token in browser session storage.
+
+### 10.3 Configure GitHub Actions without an AWS access key
+
+1. In GitHub repository settings, create Environment `dashboard-production`.
+2. Protect it: restrict deployment branches to `main` and require a reviewer for customer-facing deployment. The IAM trust policy rejects a token not issued for this exact environment.
+3. Add GitHub Environment variable `AWS_DASHBOARD_DEPLOY_ROLE_ARN` with the `GitHubDashboardDeployRoleArn` CloudFormation output. This is an ARN, not a secret.
+4. Push a change to `dashboard/static/`, `src/dashboard_api/` or the hosted stack on `main`, or use **Run workflow** for `Deploy hosted dashboard`.
+
+The workflow runs tests and synth before deployment, asks GitHub OIDC for a one-hour role session, deploys the one hosted stack, then configures Cognito redirects. It contains no long-lived `AWS_ACCESS_KEY_ID`/secret. If a job cannot assume the role, check the repository name, GitHub Environment name, branch rule, audience (`sts.amazonaws.com`), account/region and CDK bootstrap roles before widening any IAM policy.
+
+### 10.4 Optional AWS IAM Identity Center SSO
+
+Native Cognito invite credentials are the deployed baseline. For AWS-workforce SSO, an IAM Identity Center administrator must explicitly create and assign a custom SAML application, then configure that application's metadata as a Cognito SAML provider and add it to the browser client. This is a controlled tenant/identity change; it is not automated by CDK and must not be approximated by exposing an IAM user credential to the browser. Verify an assigned user can sign in, and an unassigned Identity Center user cannot, before claiming SSO acceptance.
+
+### 10.5 Cost-safe teardown
+
+When the customer share window closes, destroy only this optional stack. Do not destroy `oilfield-esp-core` or `CDKToolkit`.
+
+```powershell
+. .\scripts\common.ps1
+Invoke-Checked $script:ProjectCdk @('destroy', "$script:ProjectPrefix-dashboard-hosted", '--force')
+aws cloudformation describe-stacks --stack-name oilfield-esp-dashboard-hosted
+```
+
+The final command should return a not-found validation error. Cognito users in this disposable pool, static site assets and hosted distribution are deleted with the stack. GitHub's OIDC provider and deployment role are also stack-owned. The shared CDK bootstrap resources intentionally remain.
+
 ## 0. Prerequisites checklist
 
 - Python 3.12, Node.js 24, AWS CLI v2 installed.

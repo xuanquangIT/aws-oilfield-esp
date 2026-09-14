@@ -4,7 +4,7 @@ This document defines the required local dashboard, optional hosted profile, cus
 
 ## Phase 1 realtime web dashboard
 
-Status: **required Phase 1 consumer deliverable; implementation and evidence not yet complete.** Phase 1 cannot be called a complete customer product until the dashboard consumes real latest state and approved KPIs, then passes G10. The default profile is local-first so it introduces no new fixed monthly AWS service charge.
+Status: **M5 dashboard implementation is complete locally; hosted authentication and deployment evidence is recorded separately in the runbook.** The default profile remains local-first. The optional hosted profile is designed for an explicit external share window and must be destroyed afterward when a permanent public URL is not needed.
 
 Backend foundation is implemented and offline-tested: `dashboard/server.py` binds only `127.0.0.1:8765`, offers the four versioned read-only endpoints, provides deterministic fixture modes, shared freshness cache and AWS read adapters. Start the fixture API without AWS access:
 
@@ -159,6 +159,32 @@ Controls:
 A 60-minute rehearsal records browser polls, cache hits/misses, DynamoDB operations/capacity, S3 GETs/bytes, API latency, end-to-end freshness and eventually available billing. An unavailable bill is recorded as unavailable, not zero.
 
 ### Optional hosted profile
+
+The hosted deployment is a separate CloudFormation stack, `oilfield-esp-dashboard-hosted`; it never creates Kinesis and never changes the realtime lifecycle. It is public only as a web entry point: all dashboard data routes require a Cognito JWT, and the S3 origin itself is private.
+
+```mermaid
+flowchart LR
+  U[Authenticated browser] --> CF[CloudFront HTTPS]
+  CF -->|OAC| Site[Private S3 static UI]
+  CF -->|/api only| API[HTTP API JWT authorizer]
+  API --> L[Read-only Lambda cache]
+  L -->|BatchGetItem: ESP-101..103| DDB[Core LatestState]
+  L -->|approved pointer plus KPI only| S3[Core publication objects]
+  C[Cognito managed login + PKCE] --> API
+  GH[GitHub Actions protected environment] -->|OIDC, no AWS key| CDK[CDK deployment roles]
+```
+
+Security boundary:
+
+- CloudFront is the only public origin. The site bucket blocks all public access and is readable only through CloudFront Origin Access Control.
+- API Gateway requires a Cognito issuer/client JWT for every data endpoint. `/api/v1/config` is public by design but returns only OAuth public identifiers, never AWS identifiers or secrets.
+- Cognito self-sign-up is disabled. Passwords require 14 characters with all character classes; optional MFA is TOTP-only so there is no SMS spend. Create users only through `scripts/create-dashboard-user.py`.
+- The Lambda has only `dynamodb:BatchGetItem` on the core latest-state table and `s3:GetObject` for the approved publication pointer, KPI summaries and quality report. It cannot read raw/quarantine objects, Kinesis, SNS, CloudFormation, or browser credentials.
+- GitHub Actions receives short-lived credentials through OIDC. Its trust policy pins `repo:xuanquangIT/aws-oilfield-esp:environment:dashboard-production`; protect that GitHub Environment with required reviewers before allowing unattended production deploys.
+
+AWS IAM Identity Center can be used as the enterprise SSO identity provider, but it is intentionally a manual tenant-admin integration: create a custom SAML application in Identity Center using Cognito's service-provider metadata, exchange IdP metadata, then add the Cognito SAML provider/client mapping. This avoids embedding an Identity Center admin credential or silently granting every AWS account user access to the dashboard. Native Cognito invite credentials are the secure default until that application assignment is approved.
+
+Deployment and CI/CD commands are in [the hosted dashboard runbook](09-RUNBOOK.md#10-hosted-dashboard-cognito-and-github-actions-oidc). The initial CDK deploy is an operator action; subsequent `main` changes under `dashboard/static/`, `src/dashboard_api/`, or the hosted stack run `.github/workflows/deploy-dashboard.yml` after the protected GitHub environment is configured.
 
 An external customer URL is an optional delivery profile, not a separate data flow. When explicitly needed, deploy a separate stack containing CloudFront, a separate private S3 web-assets bucket with Origin Access Control, API Gateway HTTP API, Cognito JWT authorization and a read-only Dashboard Lambda. It reuses the existing latest-state table and approved KPI object.
 

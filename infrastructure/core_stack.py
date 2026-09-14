@@ -572,3 +572,4 @@ class CoreStack(Stack):
         self.processor = processor
         self.anomaly = anomaly
         self.data_bucket = bucket
+        self.state_table = state

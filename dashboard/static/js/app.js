@@ -133,13 +133,17 @@
       try {
         const res = await fetch(CONFIG.API_ENDPOINTS.PUMPS, {
           signal: this.controller.signal,
-          headers: { "Accept": "application/json" }
+          headers: { "Accept": "application/json", ...(window.dashboardAuth ? window.dashboardAuth.header() : {}) }
         });
 
         state.lastLatencyMs = Math.round(performance.now() - startTime);
 
         if (res.status === 503) {
           return { error: "dependency_unavailable", status: 503 };
+        }
+        if (res.status === 401 && window.dashboardAuth) {
+          window.dashboardAuth.unauthorized();
+          return { error: "unauthorized", status: 401 };
         }
         if (!res.ok) {
           return { error: "http_error", status: res.status };
@@ -158,7 +162,8 @@
 
     async fetchKpis() {
       try {
-        const res = await fetch(CONFIG.API_ENDPOINTS.KPIS, { headers: { "Accept": "application/json" } });
+        const res = await fetch(CONFIG.API_ENDPOINTS.KPIS, { headers: { "Accept": "application/json", ...(window.dashboardAuth ? window.dashboardAuth.header() : {}) } });
+        if (res.status === 401 && window.dashboardAuth) window.dashboardAuth.unauthorized();
         if (!res.ok) return null;
         return await res.json();
       } catch (err) {
@@ -168,7 +173,8 @@
 
     async fetchHealth() {
       try {
-        const res = await fetch(CONFIG.API_ENDPOINTS.HEALTH, { headers: { "Accept": "application/json" } });
+        const res = await fetch(CONFIG.API_ENDPOINTS.HEALTH, { headers: { "Accept": "application/json", ...(window.dashboardAuth ? window.dashboardAuth.header() : {}) } });
+        if (res.status === 401 && window.dashboardAuth) window.dashboardAuth.unauthorized();
         if (!res.ok) return null;
         return await res.json();
       } catch (err) {
@@ -1025,6 +1031,7 @@
 
   // Application Entry Point
   async function init() {
+    if (window.dashboardAuth) await window.dashboardAuth.initialize();
     renderer.updateClock();
     setupAudioToggle();
     setupModals();
