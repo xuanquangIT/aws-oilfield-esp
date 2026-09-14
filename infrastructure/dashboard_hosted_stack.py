@@ -53,7 +53,7 @@ class DashboardHostedStack(Stack):
             self, "ReadApi", runtime=lambda_.Runtime.PYTHON_3_12, handler="handler.lambda_handler",
             code=lambda_.Code.from_asset("src/dashboard_api"), timeout=Duration.seconds(10), memory_size=256,
             tracing=lambda_.Tracing.PASS_THROUGH, log_retention=logs.RetentionDays.THREE_DAYS,
-            environment={"STATE_TABLE": core.state_table.table_name, "DATA_BUCKET": core.data_bucket.bucket_name, "CACHE_TTL_SECONDS": "15", "COGNITO_ISSUER": issuer, "COGNITO_CLIENT_ID": user_pool_client.user_pool_client_id, "COGNITO_DOMAIN": f"https://{domain.domain_name}"},
+            environment={"STATE_TABLE": core.state_table.table_name, "DATA_BUCKET": core.data_bucket.bucket_name, "CACHE_TTL_SECONDS": "15", "COGNITO_ISSUER": issuer, "COGNITO_CLIENT_ID": user_pool_client.user_pool_client_id, "COGNITO_DOMAIN": f"https://{domain.domain_name}.auth.{self.region}.amazoncognito.com"},
         )
         api_handler.add_to_role_policy(iam.PolicyStatement(actions=["dynamodb:BatchGetItem"], resources=[core.state_table.table_arn]))
         api_handler.add_to_role_policy(iam.PolicyStatement(actions=["s3:GetObject"], resources=[
@@ -84,7 +84,15 @@ class DashboardHostedStack(Stack):
             default_root_object="index.html", minimum_protocol_version=cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
             enable_logging=False,
         )
-        s3deploy.BucketDeployment(self, "DeploySite", sources=[s3deploy.Source.asset("dashboard/static")], destination_bucket=site_bucket, distribution=distribution, distribution_paths=["/*"], prune=True)
+        s3deploy.BucketDeployment(
+            self, "DeploySite", sources=[s3deploy.Source.asset("dashboard/static")],
+            destination_bucket=site_bucket, distribution=distribution,
+            # Keep the broad invalidation and also make the root document an
+            # explicit deployment input. It guarantees the custom resource
+            # runs when web assets change, even if a reused bootstrap key is
+            # observed during a local CDK retry.
+            distribution_paths=["/*", "/index.html"], prune=True,
+        )
         # GitHub has no long-lived AWS credential. The trust is pinned to one
         # repository *and* to its protected GitHub Environment. CDK bootstrap
         # roles perform asset publishing/deployment after this narrow entry role
@@ -130,6 +138,6 @@ class DashboardHostedStack(Stack):
         CfnOutput(self, "CloudFrontDistributionId", value=distribution.distribution_id)
         CfnOutput(self, "CognitoUserPoolId", value=user_pool.user_pool_id)
         CfnOutput(self, "CognitoUserPoolClientId", value=user_pool_client.user_pool_client_id)
-        CfnOutput(self, "CognitoDomain", value=f"https://{domain.domain_name}")
+        CfnOutput(self, "CognitoDomain", value=f"https://{domain.domain_name}.auth.{self.region}.amazoncognito.com")
         CfnOutput(self, "DashboardApiUrl", value=api.api_endpoint)
         CfnOutput(self, "GitHubDashboardDeployRoleArn", value=github_deploy_role.role_arn)

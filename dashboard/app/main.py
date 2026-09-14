@@ -40,6 +40,11 @@ def create_app(settings: Settings | None = None, repository=None) -> FastAPI:
     app.include_router(router)
 
     if STATIC_DIR.is_dir():
+        # Portable asset URLs: hosted S3 serves /css and /js directly, while
+        # the loopback app exposes the same paths without changing its API
+        # boundary. Keep /static for backwards-compatible local bookmarks.
+        app.mount("/css", StaticFiles(directory=str(STATIC_DIR / "css")), name="dashboard-css")
+        app.mount("/js", StaticFiles(directory=str(STATIC_DIR / "js")), name="dashboard-js")
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
         @app.get("/", include_in_schema=False)

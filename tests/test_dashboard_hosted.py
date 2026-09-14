@@ -39,6 +39,12 @@ def test_hosted_api_is_jwt_protected_and_lambda_is_read_only(tmp_path):
     assert "dynamodb:BatchGetItem" in policy_text and "s3:GetObject" in policy_text
     for forbidden in ("dynamodb:Scan", "kinesis:", "sns:", "cloudformation:", "s3:PutObject"):
         assert forbidden not in policy_text
+    read_api = next(
+        value["Properties"] for value in template.find_resources("AWS::Lambda::Function").values()
+        if value["Properties"].get("Handler") == "handler.lambda_handler"
+    )
+    domain = read_api["Environment"]["Variables"]["COGNITO_DOMAIN"]
+    assert "amazoncognito.com" in json.dumps(domain)
 
 
 def test_github_oidc_trust_is_pinned_to_protected_environment(tmp_path):

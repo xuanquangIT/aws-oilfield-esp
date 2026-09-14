@@ -44,7 +44,7 @@
       const params = new URLSearchParams(location.search);
       if (params.get("code")) await redeem(auth, params.get("code"), params.get("state"));
       const token = stored();
-      if (!token || !token.access_token || token.expires_at <= Date.now()) await redirectToLogin(auth);
+      if (!token || !token.id_token || token.expires_at <= Date.now()) await redirectToLogin(auth);
     },
     header() { const token = stored(); return token && token.expires_at > Date.now() ? { Authorization: "Bearer " + token.id_token } : {}; },
     async unauthorized() { sessionStorage.removeItem(KEY); const auth = await config().catch(() => null); if (auth) await redirectToLogin(auth); }

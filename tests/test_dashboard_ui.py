@@ -49,17 +49,21 @@ def test_root_serves_html_with_security_headers():
     assert "no-store" in response.headers["cache-control"]
 
 
-def test_static_css_and_js_served_successfully():
+def test_portable_css_and_js_paths_are_served_successfully():
     client = make_client()
-    css_res = client.get("/static/css/dashboard.css")
+    css_res = client.get("/css/dashboard.css")
     assert css_res.status_code == 200
     assert "text/css" in css_res.headers.get("content-type", "")
     assert "--bg-app" in css_res.text
 
-    js_res = client.get("/static/js/app.js")
+    js_res = client.get("/js/app.js")
     assert js_res.status_code == 200
     assert "javascript" in js_res.headers.get("content-type", "")
     assert "Offshore ESP SCADA" in js_res.text
+
+    # Preserve local backwards compatibility while the browser uses portable
+    # paths that work from both FastAPI and the CloudFront/S3 profile.
+    assert client.get("/static/css/dashboard.css").status_code == 200
 
 
 def test_static_assets_contain_no_credentials_or_aws_sdks():
@@ -83,6 +87,12 @@ def test_static_assets_contain_no_credentials_or_aws_sdks():
             for pattern in forbidden_patterns:
                 match = pattern.search(content)
                 assert not match, f"Forbidden pattern '{pattern.pattern}' found in {file_path.name}: {match.group(0)}"
+
+
+def test_hosted_auth_uses_one_consistent_identity_token_name():
+    auth_js = (STATIC_DIR / "js" / "auth.js").read_text(encoding="utf-8")
+    assert "token.id_token" in auth_js
+    assert "token.access_token" not in auth_js
 
 
 def test_non_loopback_binding_is_rejected():
