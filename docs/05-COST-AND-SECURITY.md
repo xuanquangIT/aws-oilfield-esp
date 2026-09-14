@@ -51,7 +51,7 @@ The recommended portfolio operating model is **two or three controlled demos, th
 - A short demo reserves one Kinesis shard-hour for create, warm-up, run and destroy. Actual billing duration must be read from Cost and Usage data.
 - The local dashboard uses the existing DynamoDB table and S3 KPI object. Its cached 10–15 second polling adds less than $0.001 per short demo at this scale and creates no fixed AWS resource.
 - The optional hosted dashboard models one viewer for 60 minutes: 721 HTTP API/Lambda calls (one `/pumps` and one `/health` poll every 10 seconds plus one KPI read), 724 CloudFront requests, 1,080 DynamoDB RRUs, five S3 GETs and 100 bytes of logs per API request. It uses conservative planning rates of $1/million requests for CloudFront and HTTP API, $0.12/GB CloudFront egress, and the existing Lambda/DynamoDB/S3 rates. No NAT, VPC, ALB, WAF, Route 53 hosted zone, provisioned concurrency, CloudFront real-time logs, CodePipeline or CodeBuild is included.
-- Hosted SSO uses Cognito User Pool SAML/OIDC federation. Cognito currently includes 50 federated MAUs per month, then charges $0.015/MAU. This is a service allowance, not a reason to allow unlimited sharing; before exceeding 50 monthly users, add `(MAUs - 50) × $0.015` to the scenario and review the budget.
+- The deployed hosted profile uses Cognito invite-only native credentials, which Cognito prices under its direct/social sign-in allowance (currently 10,000 MAUs/month). The optional IAM Identity Center SAML federation is not enabled by default; it has a separate published allowance of 50 federated MAUs/month, then $0.015/MAU. Neither allowance is treated as a cost guarantee: before an externally shared deployment exceeds either threshold, update this model and review the budget.
 
 ### Unit prices used
 
@@ -69,7 +69,8 @@ The recommended portfolio operating model is **two or three controlled demos, th
 | AWS Budgets | Cost/usage monitoring and notifications are free |
 | CloudFront hosted-dashboard planning | $1.00/million requests; $0.12/GB data out (conservative, geography-dependent) |
 | API Gateway HTTP API hosted-dashboard planning | $1.00/million requests |
-| Cognito SAML/OIDC federation | 50 MAUs/month included; $0.015/MAU above allowance |
+| Cognito native invite credentials | 10,000 direct/social MAUs/month published allowance |
+| Optional Cognito SAML/OIDC federation | 50 federated MAUs/month included; $0.015/MAU above allowance |
 
 Official references: [Kinesis](https://aws.amazon.com/kinesis/data-streams/pricing/), [S3](https://aws.amazon.com/s3/pricing/), [DynamoDB](https://aws.amazon.com/dynamodb/pricing/), [Lambda](https://aws.amazon.com/lambda/pricing/), [Glue](https://aws.amazon.com/glue/pricing/), [crawler minimum](https://docs.aws.amazon.com/pdfs/whitepapers/latest/cost-modeling-data-lakes/cost-modeling-data-lakes.pdf), [Athena](https://aws.amazon.com/athena/pricing/), [Step Functions](https://aws.amazon.com/step-functions/pricing/), [CloudWatch](https://aws.amazon.com/cloudwatch/pricing/), [SNS](https://aws.amazon.com/sns/faqs/), [AWS Budgets](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/), [CloudFront](https://aws.amazon.com/cloudfront/pricing/), [API Gateway HTTP API](https://aws.amazon.com/api-gateway/pricing/), and [Cognito](https://aws.amazon.com/cognito/pricing/).
 
