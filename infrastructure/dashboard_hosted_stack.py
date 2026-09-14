@@ -116,6 +116,16 @@ class DashboardHostedStack(Stack):
             f"arn:aws:iam::{self.account}:role/cdk-hnb659fds-lookup-role-{self.account}-{self.region}",
         ]
         github_deploy_role.add_to_policy(iam.PolicyStatement(actions=["sts:AssumeRole"], resources=bootstrap_roles))
+        # Post-deploy OAuth redirect reconciliation needs only these two
+        # reads/writes; CDK deployment itself still flows through bootstrap.
+        github_deploy_role.add_to_policy(iam.PolicyStatement(
+            actions=["cloudformation:DescribeStacks"],
+            resources=[f"arn:aws:cloudformation:{self.region}:{self.account}:stack/{construct_id}/*"],
+        ))
+        github_deploy_role.add_to_policy(iam.PolicyStatement(
+            actions=["cognito-idp:DescribeUserPoolClient", "cognito-idp:UpdateUserPoolClient"],
+            resources=[user_pool.user_pool_arn],
+        ))
         CfnOutput(self, "DashboardUrl", value=f"https://{distribution.distribution_domain_name}")
         CfnOutput(self, "CloudFrontDistributionId", value=distribution.distribution_id)
         CfnOutput(self, "CognitoUserPoolId", value=user_pool.user_pool_id)

@@ -54,5 +54,8 @@ def test_github_oidc_trust_is_pinned_to_protected_environment(tmp_path):
         value["Properties"]["PolicyDocument"] for value in template.find_resources("AWS::IAM::Policy").values()
         if "GitHubDeployRole" in json.dumps(value["Properties"].get("Roles", []))
     )
-    action = json.loads(json.dumps(policy))["Statement"][0]["Action"]
-    assert ({action} if isinstance(action, str) else set(action)) == {"sts:AssumeRole"}
+    actions = set()
+    for statement in json.loads(json.dumps(policy))["Statement"]:
+        action = statement["Action"]
+        actions.update({action} if isinstance(action, str) else action)
+    assert actions == {"sts:AssumeRole", "cloudformation:DescribeStacks", "cognito-idp:DescribeUserPoolClient", "cognito-idp:UpdateUserPoolClient"}
